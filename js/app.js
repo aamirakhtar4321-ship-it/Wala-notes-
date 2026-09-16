@@ -1,6 +1,5 @@
 /* ==================== NOTES WALLAH - MAIN APP ==================== */
 
-// App State
 const AppState = {
   isLoggedIn: false,
   isOnboarded: false,
@@ -12,10 +11,10 @@ const AppState = {
     medium: '',
     language: ''
   },
-  darkMode: false
+  darkMode: false,
+  splashDone: false   // important flag to stop splash looping
 };
 
-// DOM Elements
 const splashScreen = document.getElementById('splash-screen');
 const authScreen = document.getElementById('auth-screen');
 const onboardingScreen = document.getElementById('onboarding-screen');
@@ -25,13 +24,21 @@ const mainApp = document.getElementById('main-app');
 document.addEventListener('DOMContentLoaded', () => {
   loadTheme();
 
-  // Wait for Firebase Auth to be ready
+  // Minimum 1.8 second splash, then listen to auth
+  setTimeout(() => {
+    startAuthListener();
+  }, 1800);
+});
+
+function startAuthListener() {
   auth.onAuthStateChanged(async (user) => {
-    // Hide splash after first auth check
-    hideSplash();
+    // Splash only hide once
+    if (!AppState.splashDone) {
+      hideSplash();
+      AppState.splashDone = true;
+    }
 
     if (user) {
-      // User is signed in
       try {
         const doc = await db.collection('users').doc(user.uid).get();
 
@@ -54,10 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
             showOnboarding();
           }
         } else {
-          // User exists in Auth but no Firestore doc
+          // Auth user exists but no Firestore profile yet
           AppState.user = {
             name: user.displayName || '',
-            email: user.email,
+            email: user.email || '',
             class: '',
             board: '',
             medium: '',
@@ -66,35 +73,45 @@ document.addEventListener('DOMContentLoaded', () => {
           showOnboarding();
         }
       } catch (error) {
-        console.error('Error fetching user data:', error);
-        showAuth();
+        console.error('Error fetching user:', error);
+        // Even if Firestore fails, still show main if we have basic user info
+        AppState.user = {
+          name: user.displayName || user.email?.split('@')[0] || 'Student',
+          email: user.email || '',
+          class: '',
+          board: '',
+          medium: '',
+          language: ''
+        };
+        showOnboarding();
       }
     } else {
-      // No user
+      // Not logged in
+      AppState.isLoggedIn = false;
+      AppState.isOnboarded = false;
       showAuth();
     }
   });
-});
+}
 
 function hideSplash() {
-  if (splashScreen && !splashScreen.classList.contains('fade-out')) {
-    splashScreen.classList.add('fade-out');
-    setTimeout(() => {
-      splashScreen.classList.add('hidden');
-    }, 500);
-  }
+  if (!splashScreen) return;
+  splashScreen.classList.add('fade-out');
+  setTimeout(() => {
+    splashScreen.classList.add('hidden');
+  }, 400);
 }
 
 function showAuth() {
-  authScreen.classList.remove('hidden');
-  onboardingScreen.classList.add('hidden');
-  mainApp.classList.add('hidden');
+  if (authScreen) authScreen.classList.remove('hidden');
+  if (onboardingScreen) onboardingScreen.classList.add('hidden');
+  if (mainApp) mainApp.classList.add('hidden');
 }
 
 function showOnboarding() {
-  authScreen.classList.add('hidden');
-  onboardingScreen.classList.remove('hidden');
-  mainApp.classList.add('hidden');
+  if (authScreen) authScreen.classList.add('hidden');
+  if (onboardingScreen) onboardingScreen.classList.remove('hidden');
+  if (mainApp) mainApp.classList.add('hidden');
 
   if (AppState.user.name) {
     const nameInput = document.getElementById('onboard-name');
@@ -103,9 +120,9 @@ function showOnboarding() {
 }
 
 function showMainApp() {
-  authScreen.classList.add('hidden');
-  onboardingScreen.classList.add('hidden');
-  mainApp.classList.remove('hidden');
+  if (authScreen) authScreen.classList.add('hidden');
+  if (onboardingScreen) onboardingScreen.classList.add('hidden');
+  if (mainApp) mainApp.classList.remove('hidden');
 
   updateHomeUI();
   updateAccountUI();
