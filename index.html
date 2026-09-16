@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#132242">
+  <title>Notes Wallah</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/auth.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+  <!-- ==================== SPLASH SCREEN ==================== -->
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-content">
+      <div class="logo-circle">
+        <span class="logo-text">NW</span>
+      </div>
+      <h1 class="app-name">Notes Wallah</h1>
+      <p class="tagline">Your Study Partner</p>
+    </div>
+  </div>
+
+  <!-- ==================== LOGIN / SIGNUP SCREEN ==================== -->
+  <div id="auth-screen" class="screen hidden">
+    <div class="auth-container">
+      <div class="auth-header">
+        <div class="logo-circle small">
+          <span class="logo-text">NW</span>
+        </div>
+        <h1>Notes Wallah</h1>
+        <p>Login to continue learning</p>
+      </div>
+
+      <!-- Login Form -->
+      <div id="login-form" class="auth-form">
+        <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input type="email" id="login-email" placeholder="Email" required>
+        </div>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" id="login-password" placeholder="Password" required>
+        </div>
+        <p class="forgot-link" id="forgot-password">Forgot Password?</p>
+        <button class="btn btn-primary" id="btn-login">Login</button>
+        <button class="btn btn-google" id="btn-google">
+          <i class="fab fa-google"></i> Continue with Google
+        </button>
+        <p class="switch-text">Don't have an account? <span id="go-to-signup">Create Account</span></p>
+      </div>
+
+      <!-- Signup Form -->
+      <div id="signup-form" class="auth-form hidden">
+        <div class="input-group">
+          <i class="fas fa-user"></i>
+          <input type="text" id="signup-name" placeholder="Full Name" required>
+        </div>
+        <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input type="email" id="signup-email" placeholder="Email" required>
+        </div>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" id="signup-password" placeholder="Password" required>
+        </div>
+        <button class="btn btn-primary" id="btn-signup">Create Account</button>
+        <button class="btn btn-google" id="btn-google-signup">
+          <i class="fab fa-google"></i> Continue with Google
+        </button>
+        <p class="switch-text">Already have an account? <span id="go-to-login">Login</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ONBOARDING SCREEN ==================== -->
+  <div id="onboarding-screen" class="screen hidden">
+    <div class="onboarding-container">
+      <h2>Complete Your Profile</h2>
+      <p class="subtitle">Tell us about your class</p>
+
+      <div class="input-group">
+        <i class="fas fa-user"></i>
+        <input type="text" id="onboard-name" placeholder="Your Name">
+      </div>
+
+      <div class="input-group">
+        <i class="fas fa-graduation-cap"></i>
+        <select id="onboard-class">
+          <option value="">Select Class</option>
+          <option value="9">Class 9</option>
+          <option value="10">Class 10</option>
+          <option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <i class="fas fa-school"></i>
+        <select id="onboard-board">
+          <option value="">Select Board</option>
+          <option value="CBSE">CBSE</option>
+          <option value="ICSE">ICSE</option>
+          <option value="State Board">State Board</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <i class="fas fa-book"></i>
+        <select id="onboard-medium">
+          <option value="">Select Medium</option>
+          <option value="English">English Medium</option>
+          <option value="Hindi">Hindi Medium</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <i class="fas fa-language"></i>
+        <select id="onboard-language">
+          <option value="">Preferred Language</option>
+          <option value="English">English</option>
+          <option value="Hindi">Hindi</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" id="btn-onboard-complete">Continue</button>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APP ==================== -->
+  <div id="main-app" class="screen hidden">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-circle tiny">
+          <span class="logo-text">NW</span>
+        </div>
+        <span class="header-title">Notes Wallah</span>
+      </div>
+      <div class="header-right">
+        <i class="fas fa-bell" id="btn-notifications"></i>
+      </div>
+    </header>
+
+    <!-- Pages Container -->
+    <div class="pages-container">
+
+      <!-- HOME PAGE -->
+      <div id="page-home" class="page active">
+        <div class="greeting-section">
+          <h2 id="greeting-text">Good Morning</h2>
+          <p id="student-info">Student · Class 10 · CBSE</p>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Quick Access</h3>
+          <div class="quick-access-grid">
+            <div class="quick-card" data-tab="study">
+              <i class="fas fa-book-open"></i>
+              <span>Study</span>
+            </div>
+            <div class="quick-card" data-tab="test">
+              <i class="fas fa-clipboard-list"></i>
+              <span>Test</span>
+            </div>
+            <div class="quick-card" data-tab="challenges">
+              <i class="fas fa-trophy"></i>
+              <span>Challenges</span>
+            </div>
+            <div class="quick-card" data-tab="account">
+              <i class="fas fa-certificate"></i>
+              <span>Certificates</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Daily Challenge</h3>
+          <div class="card placeholder-card">
+            <p>Coming Soon</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3 class="section-title">Weekly Challenge</h3>
+          <div class="card placeholder-card">
+            <p>Coming Soon</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- STUDY PAGE -->
+      <div id="page-study" class="page">
+        <h2 class="page-title">Study</h2>
+        <p class="page-subtitle">Select a subject to start learning</p>
+        <div id="subjects-list" class="subjects-list">
+          <div class="empty-state">
+            <i class="fas fa-book"></i>
+            <p>Subjects will appear here</p>
+            <small>Firebase will be connected in Part 2</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- TEST PAGE -->
+      <div id="page-test" class="page">
+        <h2 class="page-title">Test</h2>
+        <p class="page-subtitle">Practice with chapter tests</p>
+        <div class="empty-state">
+          <i class="fas fa-clipboard-list"></i>
+          <p>Tests coming soon</p>
+        </div>
+      </div>
+
+      <!-- CHALLENGES PAGE -->
+      <div id="page-challenges" class="page">
+        <h2 class="page-title">Challenges</h2>
+        <p class="page-subtitle">Daily & Weekly challenges</p>
+        <div class="empty-state">
+          <i class="fas fa-trophy"></i>
+          <p>Challenges coming soon</p>
+        </div>
+      </div>
+
+      <!-- ACCOUNT PAGE -->
+      <div id="page-account" class="page">
+        <h2 class="page-title">Account</h2>
+        
+        <div class="profile-card">
+          <div class="profile-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <h3 id="profile-name">Student Name</h3>
+          <p id="profile-email">email@example.com</p>
+          <p id="profile-class">Class 10 · CBSE · English</p>
+        </div>
+
+        <div class="menu-list">
+          <div class="menu-item" id="btn-dark-mode">
+            <i class="fas fa-moon"></i>
+            <span>Dark Mode</span>
+            <label class="switch">
+              <input type="checkbox" id="dark-mode-toggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="menu-item">
+            <i class="fas fa-bell"></i>
+            <span>Notifications</span>
+            <i class="fas fa-chevron-right"></i>
+          </div>
+          <div class="menu-item">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+            <i class="fas fa-chevron-right"></i>
+          </div>
+          <div class="menu-item logout" id="btn-logout">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <div class="nav-item active" data-page="home">
+        <i class="fas fa-home"></i>
+        <span>Home</span>
+      </div>
+      <div class="nav-item" data-page="study">
+        <i class="fas fa-book-open"></i>
+        <span>Study</span>
+      </div>
+      <div class="nav-item" data-page="test">
+        <i class="fas fa-clipboard-list"></i>
+        <span>Test</span>
+      </div>
+      <div class="nav-item" data-page="challenges">
+        <i class="fas fa-trophy"></i>
+        <span>Challenges</span>
+      </div>
+      <div class="nav-item" data-page="account">
+        <i class="fas fa-user"></i>
+        <span>Account</span>
+      </div>
+    </nav>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/navigation.js"></script>
+</body>
+</html>
