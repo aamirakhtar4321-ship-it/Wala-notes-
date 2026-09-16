@@ -32,22 +32,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const userCredential = await auth.signInWithEmailAndPassword(email, password);
-      const user = userCredential.user;
-      await handleSuccessfulLogin(user);
-
+      // onAuthStateChanged will handle the rest
+      console.log('Email login success:', userCredential.user.email);
     } catch (error) {
-      console.error(error);
+      console.error('Login error:', error.code, error.message);
       let message = 'Login failed. Please try again.';
-      if (error.code === 'auth/user-not-found') message = 'No account found with this email.';
-      if (error.code === 'auth/wrong-password') message = 'Incorrect password.';
-      if (error.code === 'auth/invalid-email') message = 'Invalid email address.';
-      if (error.code === 'auth/too-many-requests') message = 'Too many attempts. Try again later.';
-      if (error.code === 'auth/invalid-credential') message = 'Invalid email or password.';
-      alert(message);
-    }
 
-    btn.disabled = false;
-    btn.textContent = 'Login';
+      if (error.code === 'auth/user-not-found') message = 'No account found with this email. Please sign up first.';
+      else if (error.code === 'auth/wrong-password') message = 'Wrong password. Please try again.';
+      else if (error.code === 'auth/invalid-email') message = 'Invalid email address.';
+      else if (error.code === 'auth/too-many-requests') message = 'Too many failed attempts. Try again later.';
+      else if (error.code === 'auth/invalid-credential') message = 'Wrong email or password.';
+      else if (error.code === 'auth/network-request-failed') message = 'Network error. Check your internet.';
+      else message = 'Error: ' + (error.message || 'Unknown error');
+
+      alert(message);
+      btn.disabled = false;
+      btn.textContent = 'Login';
+    }
   });
 
   // ==================== EMAIL SIGNUP ====================
@@ -61,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Please fill all fields');
       return;
     }
-
     if (password.length < 6) {
       alert('Password must be at least 6 characters');
       return;
@@ -74,17 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const userCredential = await auth.createUserWithEmailAndPassword(email, password);
       const user = userCredential.user;
 
-      // Update display name
       await user.updateProfile({ displayName: name });
 
-      // Send verification email
-      try {
-        await user.sendEmailVerification();
-      } catch (e) {
-        console.log('Verification email error:', e);
-      }
-
-      // Create user document in Firestore
+      // Create Firestore profile
       await db.collection('users').doc(user.uid).set({
         name: name,
         email: email,
@@ -92,21 +85,24 @@ document.addEventListener('DOMContentLoaded', () => {
         board: '',
         medium: '',
         language: '',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        onboarded: false
+        onboarded: false,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      alert('Account created successfully!');
+      // Try sending verification email (optional)
+      try { await user.sendEmailVerification(); } catch(e) {}
 
-      AppState.user = { name, email, class: '', board: '', medium: '', language: '' };
-      showOnboarding();
+      alert('Account created successfully!');
+      // onAuthStateChanged will take user to onboarding
 
     } catch (error) {
-      console.error(error);
-      let message = 'Signup failed. Please try again.';
-      if (error.code === 'auth/email-already-in-use') message = 'This email is already registered.';
-      if (error.code === 'auth/invalid-email') message = 'Invalid email address.';
-      if (error.code === 'auth/weak-password') message = 'Password is too weak.';
+      console.error('Signup error:', error.code, error.message);
+      let message = 'Signup failed.';
+      if (error.code === 'auth/email-already-in-use') message = 'This email is already registered. Please login.';
+      else if (error.code === 'auth/invalid-email') message = 'Invalid email address.';
+      else if (error.code === 'auth/weak-password') message = 'Password is too weak (min 6 characters).';
+      else if (error.code === 'auth/network-request-failed') message = 'Network error. Check your internet.';
+      else message = error.message || 'Unknown error';
       alert(message);
     }
 
@@ -117,25 +113,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==================== GOOGLE LOGIN ====================
   async function googleLogin() {
     const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      const result = await auth.signInWithPopup(provider);
-      const user = result.user;
-      await handleSuccessfulLogin(user);
-
+      await auth.signInWithPopup(provider);
+      // onAuthStateChanged will handle everything after this
     } catch (error) {
-      console.error('Google Login Error:', error);
+      console.error('Google Login Error:', error.code, error.message);
 
-      if (error.code === 'auth/popup-closed-by-user') {
-        return; // user closed popup
-      }
+      if (error.code === 'auth/popup-closed-by-user') return;
+      if (error.code === 'auth/cancelled-popup-request') return;
 
-      let message = 'Google login failed. Please try again.';
+      let message = 'Google login failed.';
       if (error.code === 'auth/popup-blocked') {
-        message = 'Popup blocked by browser. Please allow popups for this site.';
-      }
-      if (error.code === 'auth/unauthorized-domain') {
-        message = 'Domain not authorized. Go to Firebase Console → Authentication → Settings → Authorized domains and add your domain (and localhost).';
+        message = 'Popup blocked! Please allow popups for this site and try again.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        message = 'Domain not allowed.\n\nGo to Firebase Console → Authentication → Settings → Authorized domains\nand add "localhost"';
+      } else if (error.code === 'auth/network-request-failed') {
+        message = 'Network error. Check your internet connection.';
+      } else {
+        message = error.message || 'Unknown error';
       }
       alert(message);
     }
@@ -147,18 +144,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==================== FORGOT PASSWORD ====================
   document.getElementById('forgot-password').addEventListener('click', async () => {
     const email = document.getElementById('login-email').value.trim();
-
     if (!email) {
       alert('Please enter your email first');
       return;
     }
-
     try {
       await auth.sendPasswordResetEmail(email);
       alert('Password reset link sent to your email.');
     } catch (error) {
-      console.error(error);
-      alert('Failed to send reset email. Check if the email is correct.');
+      alert('Failed to send reset email. Check if the email is registered.');
     }
   });
 
@@ -212,67 +206,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (error) {
       console.error(error);
-      alert('Failed to save profile. Please try again.');
+      alert('Failed to save profile. Please check internet and try again.');
     }
 
     btn.disabled = false;
     btn.textContent = 'Continue';
   });
-
 });
-
-// ==================== HANDLE SUCCESSFUL LOGIN ====================
-async function handleSuccessfulLogin(user) {
-  try {
-    const docRef = db.collection('users').doc(user.uid);
-    const doc = await docRef.get();
-
-    if (!doc.exists) {
-      // New user (usually Google)
-      await docRef.set({
-        name: user.displayName || '',
-        email: user.email,
-        photoURL: user.photoURL || '',
-        class: '',
-        board: '',
-        medium: '',
-        language: '',
-        onboarded: false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      AppState.user = {
-        name: user.displayName || '',
-        email: user.email,
-        class: '',
-        board: '',
-        medium: '',
-        language: ''
-      };
-      showOnboarding();
-      return;
-    }
-
-    const data = doc.data();
-
-    AppState.user = {
-      name: data.name || user.displayName || '',
-      email: data.email || user.email,
-      class: data.class || '',
-      board: data.board || '',
-      medium: data.medium || '',
-      language: data.language || ''
-    };
-
-    if (data.onboarded === true) {
-      AppState.isOnboarded = true;
-      showMainApp();
-    } else {
-      showOnboarding();
-    }
-
-  } catch (error) {
-    console.error('Error handling login:', error);
-    alert('Something went wrong. Please try again.');
-  }
-}
