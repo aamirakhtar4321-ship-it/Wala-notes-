@@ -205,8 +205,12 @@ document.addEventListener('DOMContentLoaded', () => {
       showMainApp();
 
     } catch (error) {
-      console.error(error);
-      alert('Failed to save profile. Please check internet and try again.');
+      console.error('Profile save error:', error);
+      let msg = 'Failed to save profile.\n\n';
+      if (error.code) msg += 'Code: ' + error.code + '\n';
+      if (error.message) msg += error.message;
+      else msg += 'Check internet or Firestore rules.';
+      alert(msg);
     }
 
     btn.disabled = false;
