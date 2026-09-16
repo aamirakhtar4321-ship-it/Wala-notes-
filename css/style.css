@@ -483,4 +483,3 @@ input:checked + .slider:before {
 .nav-item.active i {
   color: var(--gold);
 }
-
