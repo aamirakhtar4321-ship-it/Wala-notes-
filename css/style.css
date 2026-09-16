@@ -483,3 +483,202 @@ input:checked + .slider:before {
 .nav-item.active i {
   color: var(--gold);
 }
+
+/* ==================== STUDY SECTION ==================== */
+.subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.subject-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 24px 16px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.subject-card:active {
+  transform: scale(0.97);
+}
+
+.subject-card i {
+  font-size: 28px;
+  color: var(--gold);
+  margin-bottom: 10px;
+  display: block;
+}
+
+.subject-card span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.back-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary-navy);
+  font-size: 16px;
+}
+
+body.dark-mode .back-bar {
+  color: var(--gold);
+}
+
+.back-bar i {
+  font-size: 16px;
+}
+
+.chapters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chapter-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  cursor: pointer;
+}
+
+.chapter-card:active {
+  transform: scale(0.99);
+}
+
+.chapter-number {
+  width: 36px;
+  height: 36px;
+  background: var(--primary-navy);
+  color: var(--gold);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.chapter-info {
+  flex: 1;
+}
+
+.chapter-info h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-dark);
+}
+
+.chapter-tags {
+  display: flex;
+  gap: 6px;
+}
+
+.tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.tag.ebook {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.tag.pro {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+body.dark-mode .tag.ebook {
+  background: #1b3a1e;
+  color: #81c784;
+}
+
+body.dark-mode .tag.pro {
+  background: #3e2723;
+  color: #ffb74d;
+}
+
+.chapter-card .fa-chevron-right {
+  color: var(--text-light);
+  font-size: 12px;
+}
+
+/* Chapter Detail */
+.chapter-detail h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-navy);
+  margin-bottom: 4px;
+}
+
+body.dark-mode .chapter-detail h2 {
+  color: var(--gold);
+}
+
+.chapter-meta {
+  color: var(--text-light);
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.action-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.action-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.action-card:active {
+  border-color: var(--gold);
+}
+
+.action-card i {
+  font-size: 22px;
+  color: var(--gold);
+  width: 40px;
+  text-align: center;
+}
+
+.action-card h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.action-card p {
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.action-card.pro-notes i {
+  color: #e65100;
+}
