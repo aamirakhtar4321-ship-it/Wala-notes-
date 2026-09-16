@@ -1,36 +1,43 @@
-# Notes Wallah - Part 1
+# Notes Wallah - Part 2
 
-Clean educational web app foundation.
+Firebase Auth + Google Login + Firestore connected.
 
-## Tech Stack
-- HTML
-- CSS
-- JavaScript (Vanilla)
-- No frameworks
-- Firebase will be added in Part 2
+## What is working now
 
-## Features in Part 1
-- Professional Splash Screen
-- Login / Signup UI
-- Continue with Google button (placeholder)
-- Onboarding (Name, Class, Board, Medium, Language)
-- Bottom Navigation (Home, Study, Test, Challenges, Account)
-- Home screen with greeting + Quick Access
-- Account page with Dark Mode toggle
-- Dark Mode support
-- Mobile-first responsive design
-- Navy + Gold + Cream brand colors
+- Real Email + Password Login / Signup
+- Continue with Google (Firebase Google Sign-In)
+- Forgot Password
+- User profile saved in Firestore (`users` collection)
+- Onboarding data saved permanently
+- Session stays logged in (even after refresh)
+- Logout works
+- Dark Mode
+- Bottom Navigation
 
-## How to Run
-1. Download all files
-2. Open `index.html` in any modern browser
-3. Or upload the whole folder to GitHub and use GitHub Pages / Netlify
+## Important Firebase Console Setup (Do these)
 
-## Temporary Auth
-Currently using localStorage for demo.
-Real Firebase Authentication will come in **Part 2**.
+1. **Authentication → Sign-in method**
+   - Enable **Email/Password**
+   - Enable **Google**
+
+2. **Authentication → Settings → Authorized domains**
+   - Add `localhost`
+   - Add your domain if you deploy (e.g. github.io or netlify.app)
+
+3. **Firestore Database**
+   - Create database in **test mode** for now (or add proper rules later)
+   - Collection `users` will be created automatically
+
+## How to Test
+
+1. Open `index.html` in browser (or use Live Server)
+2. Create account with Email or use Google Login
+3. Complete Onboarding
+4. Check Firebase Console → Authentication (users should appear)
+5. Check Firestore → `users` collection
 
 ## Folder Structure
+
 ```
 notes-wallah/
 ├── index.html
@@ -38,15 +45,16 @@ notes-wallah/
 │   ├── style.css
 │   └── auth.css
 ├── js/
+│   ├── firebase.js      ← Firebase config + init
 │   ├── app.js
 │   ├── auth.js
 │   └── navigation.js
-├── assets/          (put logo here later)
+├── assets/
 └── README.md
 ```
 
-## Next: Part 2
-- Connect real Firebase (Auth + Firestore)
-- Google Login working
-- Save user profile in Firestore
-- Subjects & Chapters from database
+## Next: Part 3
+- Study section (Subjects + Chapters from Firestore)
+- Chapter detail page
+- Ebook links
+- Pro Notes structure (with Ad placeholder)
