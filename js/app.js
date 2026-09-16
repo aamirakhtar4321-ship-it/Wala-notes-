@@ -1,6 +1,6 @@
 /* ==================== NOTES WALLAH - MAIN APP ==================== */
 
-// App State (temporary - will move to Firebase in Part 2)
+// App State
 const AppState = {
   isLoggedIn: false,
   isOnboarded: false,
@@ -23,39 +23,65 @@ const mainApp = document.getElementById('main-app');
 
 // ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', () => {
-  // Load saved theme
   loadTheme();
 
-  // Show splash for 2 seconds then decide where to go
-  setTimeout(() => {
+  // Wait for Firebase Auth to be ready
+  auth.onAuthStateChanged(async (user) => {
+    // Hide splash after first auth check
     hideSplash();
-    checkAuthState();
-  }, 2000);
+
+    if (user) {
+      // User is signed in
+      try {
+        const doc = await db.collection('users').doc(user.uid).get();
+
+        if (doc.exists) {
+          const data = doc.data();
+          AppState.user = {
+            name: data.name || user.displayName || '',
+            email: data.email || user.email,
+            class: data.class || '',
+            board: data.board || '',
+            medium: data.medium || '',
+            language: data.language || ''
+          };
+          AppState.isLoggedIn = true;
+
+          if (data.onboarded === true) {
+            AppState.isOnboarded = true;
+            showMainApp();
+          } else {
+            showOnboarding();
+          }
+        } else {
+          // User exists in Auth but no Firestore doc
+          AppState.user = {
+            name: user.displayName || '',
+            email: user.email,
+            class: '',
+            board: '',
+            medium: '',
+            language: ''
+          };
+          showOnboarding();
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        showAuth();
+      }
+    } else {
+      // No user
+      showAuth();
+    }
+  });
 });
 
 function hideSplash() {
-  splashScreen.classList.add('fade-out');
-  setTimeout(() => {
-    splashScreen.classList.add('hidden');
-  }, 500);
-}
-
-function checkAuthState() {
-  // Temporary logic (Firebase will replace this in Part 2)
-  const savedUser = localStorage.getItem('nw_user');
-  
-  if (savedUser) {
-    AppState.user = JSON.parse(savedUser);
-    AppState.isLoggedIn = true;
-    AppState.isOnboarded = localStorage.getItem('nw_onboarded') === 'true';
-
-    if (AppState.isOnboarded) {
-      showMainApp();
-    } else {
-      showOnboarding();
-    }
-  } else {
-    showAuth();
+  if (splashScreen && !splashScreen.classList.contains('fade-out')) {
+    splashScreen.classList.add('fade-out');
+    setTimeout(() => {
+      splashScreen.classList.add('hidden');
+    }, 500);
   }
 }
 
@@ -70,9 +96,9 @@ function showOnboarding() {
   onboardingScreen.classList.remove('hidden');
   mainApp.classList.add('hidden');
 
-  // Pre-fill name if available
   if (AppState.user.name) {
-    document.getElementById('onboard-name').value = AppState.user.name;
+    const nameInput = document.getElementById('onboard-name');
+    if (nameInput) nameInput.value = AppState.user.name;
   }
 }
 
@@ -92,25 +118,35 @@ function updateHomeUI() {
   if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
   else if (hour >= 17) greeting = 'Good Evening';
 
-  document.getElementById('greeting-text').textContent = `${greeting}, ${AppState.user.name || 'Student'}`;
-  
+  const greetingEl = document.getElementById('greeting-text');
+  if (greetingEl) {
+    greetingEl.textContent = `${greeting}, ${AppState.user.name || 'Student'}`;
+  }
+
   const info = [];
   if (AppState.user.class) info.push(`Class ${AppState.user.class}`);
   if (AppState.user.board) info.push(AppState.user.board);
   if (AppState.user.medium) info.push(AppState.user.medium);
-  
-  document.getElementById('student-info').textContent = info.join(' · ') || 'Complete your profile';
+
+  const infoEl = document.getElementById('student-info');
+  if (infoEl) {
+    infoEl.textContent = info.join(' · ') || 'Complete your profile';
+  }
 }
 
 function updateAccountUI() {
-  document.getElementById('profile-name').textContent = AppState.user.name || 'Student Name';
-  document.getElementById('profile-email').textContent = AppState.user.email || 'email@example.com';
-  
+  const nameEl = document.getElementById('profile-name');
+  const emailEl = document.getElementById('profile-email');
+  const classEl = document.getElementById('profile-class');
+
+  if (nameEl) nameEl.textContent = AppState.user.name || 'Student Name';
+  if (emailEl) emailEl.textContent = AppState.user.email || 'email@example.com';
+
   const info = [];
   if (AppState.user.class) info.push(`Class ${AppState.user.class}`);
   if (AppState.user.board) info.push(AppState.user.board);
   if (AppState.user.medium) info.push(AppState.user.medium);
-  document.getElementById('profile-class').textContent = info.join(' · ') || 'Not set';
+  if (classEl) classEl.textContent = info.join(' · ') || 'Not set';
 }
 
 // ==================== THEME ====================
@@ -130,7 +166,6 @@ function toggleDarkMode() {
   localStorage.setItem('nw_darkmode', AppState.darkMode);
 }
 
-// Dark mode toggle listener
 document.addEventListener('DOMContentLoaded', () => {
   const toggle = document.getElementById('dark-mode-toggle');
   if (toggle) {
@@ -139,13 +174,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==================== LOGOUT ====================
-function logout() {
-  localStorage.removeItem('nw_user');
-  localStorage.removeItem('nw_onboarded');
-  AppState.isLoggedIn = false;
-  AppState.isOnboarded = false;
-  AppState.user = { name: '', email: '', class: '', board: '', medium: '', language: '' };
-  showAuth();
+async function logout() {
+  try {
+    await auth.signOut();
+    AppState.isLoggedIn = false;
+    AppState.isOnboarded = false;
+    AppState.user = { name: '', email: '', class: '', board: '', medium: '', language: '' };
+    showAuth();
+  } catch (error) {
+    console.error('Logout error:', error);
+    alert('Logout failed. Please try again.');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
