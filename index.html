@@ -228,6 +228,18 @@
         </div>
       </div>
 
+      <!-- SHOP PAGE -->
+      <div id="page-shop" class="page">
+        <h2 class="page-title">Shop</h2>
+        <p class="page-subtitle">Books, merch & study essentials</p>
+        <div id="shop-content">
+          <div class="empty-state">
+            <i class="fas fa-store"></i>
+            <p>Loading shop...</p>
+          </div>
+        </div>
+      </div>
+
       <!-- ACCOUNT PAGE -->
       <div id="page-account" class="page">
         <h2 class="page-title">Account</h2>
@@ -260,6 +272,11 @@
             <span>Settings</span>
             <i class="fas fa-chevron-right"></i>
           </div>
+          <div class="menu-item" id="btn-shop-admin" onclick="openShopAdmin()">
+            <i class="fas fa-cog"></i>
+            <span>Shop Admin</span>
+            <i class="fas fa-chevron-right"></i>
+          </div>
           <div class="menu-item logout" id="btn-logout">
             <i class="fas fa-sign-out-alt"></i>
             <span>Logout</span>
@@ -287,6 +304,10 @@
         <i class="fas fa-trophy"></i>
         <span>Challenges</span>
       </div>
+      <div class="nav-item" data-page="shop">
+        <i class="fas fa-store"></i>
+        <span>Shop</span>
+      </div>
       <div class="nav-item" data-page="account">
         <i class="fas fa-user"></i>
         <span>Account</span>
@@ -298,6 +319,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-storage-compat.js"></script>
 
   <!-- App Scripts -->
   <script src="js/firebase.js"></script>
@@ -307,5 +329,6 @@
   <script src="js/study.js"></script>
   <script src="js/test.js"></script>
   <script src="js/challenges.js"></script>
+  <script src="js/shop.js"></script>
 </body>
 </html>
