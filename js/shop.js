@@ -1,25 +1,38 @@
-/* ==================== NOTES WALLAH - SHOP ==================== */
+/* ==================== NOTES WALLAH SHOP — PART 7 ==================== */
 
 let shopProducts = [];
-let shopCart = JSON.parse(localStorage.getItem('nw_cart') || '[]');
+let shopBanners = [];
 let shopFilter = 'all';
 let shopSearch = '';
+let bannerTimer = null;
+let bannerIndex = 0;
+let saleConfig = { festivals: [] };
 
-const SHOP_CATEGORIES = ['all', 'books', 'tshirts', 'mugs', 'stationery', 'accessories'];
+const CAT_LABELS = {
+  all: 'All',
+  books: 'Books',
+  tshirts: 'T-Shirts',
+  mugs: 'Cups & Mugs',
+  stationery: 'Stationery',
+  accessories: 'Accessories'
+};
 
 function loadShopPage() {
   const container = document.getElementById('shop-content');
   if (!container) return;
 
   container.innerHTML = `
+    <div id="shop-banner-wrap" class="shop-banner-wrap hidden">
+      <div class="shop-banner-track" id="shop-banner-track"></div>
+      <div class="shop-banner-dots" id="shop-banner-dots"></div>
+    </div>
+
+    <div id="sale-banner" class="sale-banner hidden"></div>
+
     <div class="shop-header-row">
       <div class="shop-search-wrap">
         <i class="fas fa-search"></i>
         <input type="text" id="shop-search" placeholder="Search products..." oninput="onShopSearch(this.value)">
-      </div>
-      <div class="cart-btn" onclick="openCart()">
-        <i class="fas fa-shopping-cart"></i>
-        <span id="cart-badge" class="cart-badge ${shopCart.length ? '' : 'hidden'}">${shopCart.length}</span>
       </div>
     </div>
 
@@ -37,36 +50,162 @@ function loadShopPage() {
     </div>
   `;
 
-  fetchProducts();
+  Promise.all([fetchBanners(), fetchSaleConfig(), fetchProducts()]).then(() => {
+    startBannerSlider();
+    applySaleUI();
+    renderShopProducts();
+  });
+}
+
+async function fetchBanners() {
+  try {
+    const snap = await db.collection('shop_banners')
+      .where('isActive', '==', true)
+      .get();
+    shopBanners = [];
+    snap.forEach(doc => shopBanners.push({ id: doc.id, ...doc.data() }));
+    shopBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
+    renderBanners();
+  } catch (e) {
+    console.error('Banners:', e);
+    shopBanners = [];
+  }
+}
+
+function renderBanners() {
+  const wrap = document.getElementById('shop-banner-wrap');
+  const track = document.getElementById('shop-banner-track');
+  const dots = document.getElementById('shop-banner-dots');
+  if (!wrap || !track) return;
+
+  if (!shopBanners.length) {
+    wrap.classList.add('hidden');
+    return;
+  }
+  wrap.classList.remove('hidden');
+  track.innerHTML = shopBanners.map(b =>
+    `<div class="shop-banner-slide">${b.imageUrl
+      ? `<img src="${b.imageUrl}" alt="" loading="lazy">`
+      : ''}</div>`
+  ).join('');
+  if (dots) {
+    dots.innerHTML = shopBanners.map((_, i) =>
+      `<span class="dot ${i === 0 ? 'active' : ''}" data-i="${i}"></span>`
+    ).join('');
+  }
+  bannerIndex = 0;
+  track.style.transform = 'translateX(0)';
+}
+
+function startBannerSlider() {
+  if (bannerTimer) clearInterval(bannerTimer);
+  if (shopBanners.length < 2) return;
+  bannerTimer = setInterval(() => {
+    bannerIndex = (bannerIndex + 1) % shopBanners.length;
+    const track = document.getElementById('shop-banner-track');
+    if (track) track.style.transform = `translateX(-${bannerIndex * 100}%)`;
+    document.querySelectorAll('#shop-banner-dots .dot').forEach((d, i) => {
+      d.classList.toggle('active', i === bannerIndex);
+    });
+  }, 3500);
+}
+
+async function fetchSaleConfig() {
+  try {
+    const doc = await db.collection('app_settings').doc('shop_sales').get();
+    if (doc.exists) saleConfig = doc.data() || { festivals: [] };
+    else saleConfig = { festivals: [] };
+  } catch (e) {
+    saleConfig = { festivals: [] };
+  }
+}
+
+function getActiveSale() {
+  const now = new Date();
+  const festivals = saleConfig.festivals || [];
+  for (const f of festivals) {
+    if (!f.start || !f.end || !f.name) continue;
+    const start = new Date(f.start);
+    const end = new Date(f.end);
+    end.setHours(23, 59, 59, 999);
+    if (now >= start && now <= end) {
+      return { type: 'festival', title: f.name + ' Sale', subtitle: 'Special picks for you' };
+    }
+  }
+  if (now.getDay() === 0) {
+    return { type: 'sunday', title: 'Sunday Special Sale', subtitle: 'Handpicked for your study goals' };
+  }
+  return null;
+}
+
+function applySaleUI() {
+  const el = document.getElementById('sale-banner');
+  if (!el) return;
+  const sale = getActiveSale();
+  if (!sale) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="sale-banner-inner">
+      <i class="fas fa-bolt"></i>
+      <div>
+        <strong>${escapeHtml(sale.title)}</strong>
+        <span>${escapeHtml(sale.subtitle)}</span>
+      </div>
+    </div>`;
 }
 
 async function fetchProducts() {
   const area = document.getElementById('shop-products-area');
-  if (!area) return;
-
   try {
-    const snap = await db.collection('products')
-      .where('isActive', '==', true)
-      .get();
-
+    const snap = await db.collection('products').where('isActive', '==', true).get();
     shopProducts = [];
-    snap.forEach(doc => {
-      shopProducts.push({ id: doc.id, ...doc.data() });
-    });
-
-    // Sort featured first
-    shopProducts.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
-
+    snap.forEach(doc => shopProducts.push({ id: doc.id, ...doc.data() }));
+    sortProductsForDisplay();
     renderShopProducts();
   } catch (err) {
-    console.error('Shop load error:', err);
-    area.innerHTML = `
-      <div class="empty-state">
+    console.error(err);
+    if (area) {
+      area.innerHTML = `<div class="empty-state">
         <i class="fas fa-exclamation-circle"></i>
         <p>Unable to load products. Please try again.</p>
         <button class="btn btn-primary" style="margin-top:12px;width:auto;padding:10px 20px" onclick="fetchProducts()">Retry</button>
       </div>`;
+    }
   }
+}
+
+function sortProductsForDisplay() {
+  const sale = getActiveSale();
+  // Pinned first always (no visual label). Then featured. Then rest.
+  shopProducts.sort((a, b) => {
+    const pinA = a.isPinned ? 1 : 0;
+    const pinB = b.isPinned ? 1 : 0;
+    if (pinB !== pinA) return pinB - pinA;
+    const featA = a.isFeatured ? 1 : 0;
+    const featB = b.isFeatured ? 1 : 0;
+    return featB - featA;
+  });
+
+  if (sale) {
+    // Show 4–5 products: prefer pinned, then random from rest
+    const pinned = shopProducts.filter(p => p.isPinned);
+    const rest = shopProducts.filter(p => !p.isPinned);
+    shuffle(rest);
+    const picked = [...pinned, ...rest].slice(0, 5);
+    shopProducts = picked.length ? picked : shopProducts;
+  }
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 function onShopSearch(val) {
@@ -80,6 +219,31 @@ function setShopFilter(cat) {
     c.classList.toggle('active', c.dataset.cat === cat);
   });
   renderShopProducts();
+}
+
+function marketplaceButtonsHtml(p) {
+  const buttons = [];
+  if (p.flipkartUrl && /^https?:\/\//i.test(p.flipkartUrl)) {
+    buttons.push(`<a class="mkt-btn mkt-flipkart" href="${escapeAttr(p.flipkartUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+      <i class="fas fa-shopping-bag"></i> Flipkart</a>`);
+  }
+  if (p.amazonUrl && /^https?:\/\//i.test(p.amazonUrl)) {
+    buttons.push(`<a class="mkt-btn mkt-amazon" href="${escapeAttr(p.amazonUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+      <i class="fab fa-amazon"></i> Amazon</a>`);
+  }
+  if (p.meeshoUrl && /^https?:\/\//i.test(p.meeshoUrl)) {
+    buttons.push(`<a class="mkt-btn mkt-meesho" href="${escapeAttr(p.meeshoUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+      <i class="fas fa-store"></i> Meesho</a>`);
+  }
+  if (p.otherStoreUrl && /^https?:\/\//i.test(p.otherStoreUrl)) {
+    const label = escapeHtml(p.otherStoreName || 'Store');
+    buttons.push(`<a class="mkt-btn mkt-other" href="${escapeAttr(p.otherStoreUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+      <i class="fas fa-external-link-alt"></i> ${label}</a>`);
+  }
+  if (!buttons.length) {
+    return `<span class="mkt-none">Links coming soon</span>`;
+  }
+  return `<div class="mkt-btns">${buttons.join('')}</div>`;
 }
 
 function renderShopProducts() {
@@ -96,49 +260,58 @@ function renderShopProducts() {
     return true;
   });
 
-  if (list.length === 0) {
-    area.innerHTML = `
-      <div class="empty-state">
-        <i class="fas fa-store"></i>
-        <p>${shopSearch || shopFilter !== 'all' ? 'No products found' : 'Nothing here yet'}</p>
-        <small>Admin can add products from Account → Shop Admin</small>
-      </div>`;
+  // Re-apply pin sort after filter (no pin label for users)
+  list.sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+
+  if (!list.length) {
+    area.innerHTML = `<div class="empty-state">
+      <i class="fas fa-store"></i>
+      <p>${shopSearch || shopFilter !== 'all' ? 'No products found' : 'Nothing here yet'}</p>
+      <small>Admin can add products from Account → Shop Admin</small>
+    </div>`;
     return;
   }
 
-  let html = '<div class="product-grid">';
-  list.forEach(p => {
-    const price = Number(p.price) || 0;
-    const original = Number(p.originalPrice) || 0;
-    const discount = original > price && original > 0
-      ? Math.round(((original - price) / original) * 100)
-      : (p.discount || 0);
+  area.innerHTML = `<div class="product-grid">${list.map(p => `
+    <div class="product-card" onclick="openProductDetail('${p.id}')">
+      <div class="product-img-wrap">
+        ${p.imageUrl
+          ? `<img src="${escapeAttr(p.imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'img-placeholder\\'><i class=\\'fas fa-image\\'></i></div>'">`
+          : `<div class="img-placeholder"><i class="fas fa-image"></i></div>`}
+      </div>
+      <div class="product-body">
+        <p class="product-cat">${escapeHtml(CAT_LABELS[p.category] || p.category || '')}</p>
+        <h4 class="product-name">${escapeHtml(p.name || 'Product')}</h4>
+        ${marketplaceButtonsHtml(p)}
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
 
-    html += `
-      <div class="product-card" onclick="openProductDetail('${p.id}')">
-        <div class="product-img-wrap">
-          ${p.imageUrl
-            ? `<img src="${p.imageUrl}" alt="${escapeHtml(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'img-placeholder\\'><i class=\\'fas fa-image\\'></i></div>'">`
-            : `<div class="img-placeholder"><i class="fas fa-image"></i></div>`}
-          ${discount ? `<span class="discount-badge">${discount}% OFF</span>` : ''}
-        </div>
-        <div class="product-body">
-          <h4 class="product-name">${escapeHtml(p.name || 'Product')}</h4>
-          <div class="product-price-row">
-            <span class="price">₹${price}</span>
-            ${original > price ? `<span class="original-price">₹${original}</span>` : ''}
-          </div>
-          ${p.rating ? `<div class="product-rating"><i class="fas fa-star"></i> ${p.rating}</div>` : ''}
-          <div class="product-actions" onclick="event.stopPropagation()">
-            <button class="btn-sm btn-outline" onclick="addToCart('${p.id}')">Add</button>
-            <button class="btn-sm btn-primary" onclick="buyNow('${p.id}')">Buy Now</button>
-          </div>
-        </div>
-      </div>`;
-  });
-  html += '</div>';
-  area.innerHTML = html;
-  updateCartBadge();
+function openProductDetail(id) {
+  const p = shopProducts.find(x => x.id === id);
+  if (!p) return;
+  detailQty = 1;
+  const container = document.getElementById('shop-content');
+  container.innerHTML = `
+    <div class="back-bar" onclick="loadShopPage()">
+      <i class="fas fa-arrow-left"></i><span>Back</span>
+    </div>
+    <div class="product-detail">
+      <div class="detail-img">
+        ${p.imageUrl
+          ? `<img src="${escapeAttr(p.imageUrl)}" alt="" loading="lazy">`
+          : `<div class="img-placeholder large"><i class="fas fa-image"></i></div>`}
+      </div>
+      <p class="product-cat">${escapeHtml(CAT_LABELS[p.category] || p.category || '')}</p>
+      <h2 class="detail-name">${escapeHtml(p.name || '')}</h2>
+      ${p.description ? `<p class="detail-desc">${escapeHtml(p.description)}</p>` : ''}
+      <div class="detail-mkt">
+        <p class="mkt-label">Available on</p>
+        ${marketplaceButtonsHtml(p)}
+      </div>
+    </div>
+  `;
 }
 
 function escapeHtml(str) {
@@ -146,267 +319,117 @@ function escapeHtml(str) {
   d.textContent = str || '';
   return d.innerHTML;
 }
-
-function openProductDetail(id) {
-  const p = shopProducts.find(x => x.id === id);
-  if (!p) return;
-
-  const container = document.getElementById('shop-content');
-  const price = Number(p.price) || 0;
-  const original = Number(p.originalPrice) || 0;
-  const discount = original > price && original > 0
-    ? Math.round(((original - price) / original) * 100)
-    : (p.discount || 0);
-
-  const buyUrl = p.productType === 'affiliate' ? (p.affiliateUrl || '') : (p.storeUrl || '');
-  const canBuy = buyUrl && /^https?:\/\//i.test(buyUrl);
-
-  container.innerHTML = `
-    <div class="back-bar" onclick="loadShopPage()">
-      <i class="fas fa-arrow-left"></i>
-      <span>Back</span>
-    </div>
-
-    <div class="product-detail">
-      <div class="detail-img">
-        ${p.imageUrl
-          ? `<img src="${p.imageUrl}" alt="${escapeHtml(p.name)}" loading="lazy">`
-          : `<div class="img-placeholder large"><i class="fas fa-image"></i></div>`}
-      </div>
-
-      <h2 class="detail-name">${escapeHtml(p.name || '')}</h2>
-      <div class="product-price-row" style="margin:8px 0 12px">
-        <span class="price" style="font-size:20px">₹${price}</span>
-        ${original > price ? `<span class="original-price">₹${original}</span>` : ''}
-        ${discount ? `<span class="discount-badge inline">${discount}% OFF</span>` : ''}
-      </div>
-
-      ${p.stockStatus === 'out_of_stock' ? '<p class="stock-out">Out of stock</p>' : '<p class="stock-in">In stock</p>'}
-
-      ${p.description ? `<p class="detail-desc">${escapeHtml(p.description)}</p>` : ''}
-
-      <div class="qty-row">
-        <span>Quantity</span>
-        <div class="qty-controls">
-          <button onclick="changeDetailQty(-1)">−</button>
-          <span id="detail-qty">1</span>
-          <button onclick="changeDetailQty(1)">+</button>
-        </div>
-      </div>
-
-      <div class="detail-actions">
-        <button class="btn btn-outline" onclick="addToCart('${p.id}', getDetailQty())">Add to Cart</button>
-        <button class="btn btn-primary" ${canBuy ? '' : 'disabled'} onclick="buyNow('${p.id}')">
-          ${canBuy ? 'Buy Now' : 'Link not available'}
-        </button>
-      </div>
-    </div>
-  `;
+function escapeAttr(str) {
+  return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-let detailQty = 1;
-function changeDetailQty(d) {
-  detailQty = Math.max(1, detailQty + d);
-  const el = document.getElementById('detail-qty');
-  if (el) el.textContent = detailQty;
-}
-function getDetailQty() { return detailQty; }
-
-function addToCart(id, qty = 1) {
-  const p = shopProducts.find(x => x.id === id);
-  if (!p) return;
-  const existing = shopCart.find(c => c.id === id);
-  if (existing) existing.qty += qty;
-  else shopCart.push({ id, name: p.name, price: p.price, imageUrl: p.imageUrl || '', qty });
-  localStorage.setItem('nw_cart', JSON.stringify(shopCart));
-  updateCartBadge();
-  alert('Added to cart');
-}
-
-function updateCartBadge() {
-  const badge = document.getElementById('cart-badge');
-  if (!badge) return;
-  const total = shopCart.reduce((s, c) => s + c.qty, 0);
-  badge.textContent = total;
-  badge.classList.toggle('hidden', total === 0);
-}
-
-function openCart() {
-  const container = document.getElementById('shop-content');
-  if (!shopCart.length) {
-    container.innerHTML = `
-      <div class="back-bar" onclick="loadShopPage()"><i class="fas fa-arrow-left"></i><span>Cart</span></div>
-      <div class="empty-state"><i class="fas fa-shopping-cart"></i><p>Your cart is empty</p></div>`;
-    return;
-  }
-
-  let total = 0;
-  let items = '';
-  shopCart.forEach((c, i) => {
-    const line = (Number(c.price) || 0) * c.qty;
-    total += line;
-    items += `
-      <div class="cart-item">
-        <div class="cart-item-img">
-          ${c.imageUrl ? `<img src="${c.imageUrl}" loading="lazy">` : '<i class="fas fa-image"></i>'}
-        </div>
-        <div class="cart-item-info">
-          <h4>${escapeHtml(c.name)}</h4>
-          <p>₹${c.price} × ${c.qty}</p>
-        </div>
-        <div class="cart-item-actions">
-          <button onclick="cartQty(${i}, -1)">−</button>
-          <span>${c.qty}</span>
-          <button onclick="cartQty(${i}, 1)">+</button>
-          <button class="remove" onclick="cartRemove(${i})"><i class="fas fa-trash"></i></button>
-        </div>
-      </div>`;
-  });
-
-  container.innerHTML = `
-    <div class="back-bar" onclick="loadShopPage()"><i class="fas fa-arrow-left"></i><span>Cart</span></div>
-    <div class="cart-list">${items}</div>
-    <div class="cart-summary card">
-      <div class="cart-total-row"><span>Total</span><strong>₹${total}</strong></div>
-      <button class="btn btn-primary" style="margin-top:12px" onclick="checkoutCart()">Checkout</button>
-      <button class="btn btn-outline" style="margin-top:8px" onclick="loadShopPage()">Continue Shopping</button>
-    </div>
-  `;
-}
-
-function cartQty(i, d) {
-  shopCart[i].qty = Math.max(1, shopCart[i].qty + d);
-  localStorage.setItem('nw_cart', JSON.stringify(shopCart));
-  openCart();
-  updateCartBadge();
-}
-function cartRemove(i) {
-  shopCart.splice(i, 1);
-  localStorage.setItem('nw_cart', JSON.stringify(shopCart));
-  openCart();
-  updateCartBadge();
-}
-
-function buyNow(id) {
-  const p = shopProducts.find(x => x.id === id);
-  if (!p) return;
-  let url = '';
-  if (p.productType === 'affiliate') url = p.affiliateUrl || '';
-  else url = p.storeUrl || '';
-
-  if (!url || !/^https?:\/\//i.test(url)) {
-    alert('Purchase link is not available for this product.');
-    return;
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
-
-function checkoutCart() {
-  if (!shopCart.length) return;
-  // Open first product's buy link (affiliate/own store). No fake payment.
-  const first = shopProducts.find(p => p.id === shopCart[0].id);
-  if (first) buyNow(first.id);
-  else alert('Unable to checkout. Product link missing.');
-}
-
-// Admin: simple product add (visible only if user is admin)
+/* ---------- ADMIN ---------- */
 async function isCurrentUserAdmin() {
   try {
     const user = auth.currentUser;
     if (!user) return false;
     const doc = await db.collection('users').doc(user.uid).get();
     return doc.exists && doc.data().isAdmin === true;
-  } catch (e) {
-    return false;
-  }
+  } catch (e) { return false; }
 }
 
 async function openShopAdmin() {
-  const ok = await isCurrentUserAdmin();
-  if (!ok) {
+  if (!(await isCurrentUserAdmin())) {
     alert('Admin access only');
     return;
   }
-
-  const container = document.getElementById('shop-content') || document.getElementById('page-account');
-  // Prefer shop page area; if from account, switch to shop first
   const shopNav = document.querySelector('.nav-item[data-page="shop"]');
   if (shopNav) shopNav.click();
-
-  setTimeout(() => {
-    const c = document.getElementById('shop-content');
-    if (!c) return;
-    c.innerHTML = `
-      <div class="back-bar" onclick="loadShopPage()"><i class="fas fa-arrow-left"></i><span>Shop Admin</span></div>
-      <h3 style="margin-bottom:12px">Add Product</h3>
-      <div class="admin-form">
-        <input type="text" id="ap-name" placeholder="Product name">
-        <select id="ap-category">
-          <option value="books">Books</option>
-          <option value="tshirts">T-Shirts</option>
-          <option value="mugs">Cups & Mugs</option>
-          <option value="stationery">Stationery</option>
-          <option value="accessories">Accessories</option>
-        </select>
-        <textarea id="ap-desc" placeholder="Description" rows="2"></textarea>
-        <input type="number" id="ap-price" placeholder="Price (₹)">
-        <input type="number" id="ap-original" placeholder="Original price (optional)">
-        <select id="ap-type" onchange="toggleAdminUrlFields()">
-          <option value="affiliate">Affiliate (Flipkart etc.)</option>
-          <option value="own_store">Own Store</option>
-        </select>
-        <input type="url" id="ap-affiliate" placeholder="Exact Affiliate URL">
-        <input type="url" id="ap-store" placeholder="Exact Store URL" class="hidden">
-        <input type="url" id="ap-image" placeholder="Image URL (Firebase Storage link)">
-        <label class="check-label"><input type="checkbox" id="ap-featured"> Featured</label>
-        <button class="btn btn-primary" id="ap-save" onclick="saveAdminProduct()">Save Product</button>
-      </div>
-      <p style="font-size:12px;color:var(--text-light);margin-top:12px">
-        Tip: Upload image to Firebase Storage → shop/products/ → copy download URL here.
-        Never invent affiliate links.
-      </p>
-    `;
-    toggleAdminUrlFields();
-  }, 100);
+  setTimeout(() => showAdminDashboard(), 120);
 }
 
-function toggleAdminUrlFields() {
-  const type = document.getElementById('ap-type')?.value;
-  const aff = document.getElementById('ap-affiliate');
-  const store = document.getElementById('ap-store');
-  if (!aff || !store) return;
-  if (type === 'affiliate') {
-    aff.classList.remove('hidden');
-    store.classList.add('hidden');
-  } else {
-    aff.classList.add('hidden');
-    store.classList.remove('hidden');
-  }
+async function showAdminDashboard() {
+  const c = document.getElementById('shop-content');
+  if (!c) return;
+
+  let total = 0, active = 0, pinned = 0;
+  try {
+    const snap = await db.collection('products').get();
+    total = snap.size;
+    snap.forEach(d => {
+      const x = d.data();
+      if (x.isActive) active++;
+      if (x.isPinned) pinned++;
+    });
+  } catch (e) {}
+
+  c.innerHTML = `
+    <div class="back-bar" onclick="loadShopPage()"><i class="fas fa-arrow-left"></i><span>Shop Admin</span></div>
+    <div class="admin-stats">
+      <div class="admin-stat"><strong>${total}</strong><span>Total</span></div>
+      <div class="admin-stat"><strong>${active}</strong><span>Active</span></div>
+      <div class="admin-stat"><strong>${pinned}</strong><span>Pinned</span></div>
+    </div>
+    <button class="btn btn-primary" onclick="showAdminAddProduct()">Add Product</button>
+    <button class="btn btn-outline" style="margin-top:8px" onclick="showAdminBanners()">Manage Banners</button>
+    <button class="btn btn-outline" style="margin-top:8px" onclick="showAdminProductList()">All Products</button>
+    <p style="font-size:12px;color:var(--text-light);margin-top:16px">
+      Pin ON = product always shows first (users never see “Pinned”).
+      Festival dates: Firestore → app_settings/shop_sales
+    </p>
+  `;
 }
 
-async function saveAdminProduct() {
+function showAdminAddProduct(editId, data) {
+  const c = document.getElementById('shop-content');
+  const d = data || {};
+  c.innerHTML = `
+    <div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>${editId ? 'Edit' : 'Add'} Product</span></div>
+    <div class="admin-form">
+      <input type="text" id="ap-name" placeholder="Product name" value="${escapeAttr(d.name || '')}">
+      <select id="ap-category">
+        ${['books','tshirts','mugs','stationery','accessories'].map(cat =>
+          `<option value="${cat}" ${(d.category||'')===cat?'selected':''}>${CAT_LABELS[cat]}</option>`
+        ).join('')}
+      </select>
+      <textarea id="ap-desc" placeholder="Description" rows="2">${escapeHtml(d.description || '')}</textarea>
+      <input type="url" id="ap-image" placeholder="Image URL (Firebase Storage)" value="${escapeAttr(d.imageUrl || '')}">
+      <input type="url" id="ap-flipkart" placeholder="Flipkart URL (exact)" value="${escapeAttr(d.flipkartUrl || '')}">
+      <input type="url" id="ap-amazon" placeholder="Amazon URL (exact)" value="${escapeAttr(d.amazonUrl || '')}">
+      <input type="url" id="ap-meesho" placeholder="Meesho URL (exact)" value="${escapeAttr(d.meeshoUrl || '')}">
+      <input type="text" id="ap-other-name" placeholder="Other store name (optional)" value="${escapeAttr(d.otherStoreName || '')}">
+      <input type="url" id="ap-other-url" placeholder="Other store URL (exact)" value="${escapeAttr(d.otherStoreUrl || '')}">
+      <label class="check-label"><input type="checkbox" id="ap-pinned" ${d.isPinned ? 'checked' : ''}> Pin Product (show first)</label>
+      <label class="check-label"><input type="checkbox" id="ap-featured" ${d.isFeatured ? 'checked' : ''}> Featured</label>
+      <label class="check-label"><input type="checkbox" id="ap-active" ${d.isActive !== false ? 'checked' : ''}> Active</label>
+      <button class="btn btn-primary" id="ap-save" onclick="saveAdminProduct('${editId || ''}')">Save Product</button>
+    </div>
+  `;
+}
+
+async function saveAdminProduct(editId) {
   const name = document.getElementById('ap-name').value.trim();
-  const category = document.getElementById('ap-category').value;
-  const description = document.getElementById('ap-desc').value.trim();
-  const price = Number(document.getElementById('ap-price').value) || 0;
-  const originalPrice = Number(document.getElementById('ap-original').value) || 0;
-  const productType = document.getElementById('ap-type').value;
-  const affiliateUrl = document.getElementById('ap-affiliate').value.trim();
-  const storeUrl = document.getElementById('ap-store').value.trim();
-  const imageUrl = document.getElementById('ap-image').value.trim();
-  const isFeatured = document.getElementById('ap-featured').checked;
+  if (!name) { alert('Name required'); return; }
 
-  if (!name || !price) {
-    alert('Name and price are required');
-    return;
-  }
-  if (productType === 'affiliate' && affiliateUrl && !/^https?:\/\//i.test(affiliateUrl)) {
-    alert('Affiliate URL must start with http:// or https://');
-    return;
-  }
-  if (productType === 'own_store' && storeUrl && !/^https?:\/\//i.test(storeUrl)) {
-    alert('Store URL must start with http:// or https://');
-    return;
+  const payload = {
+    name,
+    category: document.getElementById('ap-category').value,
+    description: document.getElementById('ap-desc').value.trim(),
+    imageUrl: document.getElementById('ap-image').value.trim(),
+    flipkartUrl: document.getElementById('ap-flipkart').value.trim(),
+    amazonUrl: document.getElementById('ap-amazon').value.trim(),
+    meeshoUrl: document.getElementById('ap-meesho').value.trim(),
+    otherStoreName: document.getElementById('ap-other-name').value.trim(),
+    otherStoreUrl: document.getElementById('ap-other-url').value.trim(),
+    isPinned: document.getElementById('ap-pinned').checked,
+    isFeatured: document.getElementById('ap-featured').checked,
+    isActive: document.getElementById('ap-active').checked,
+    stockStatus: 'in_stock',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  // Validate URLs if present
+  for (const key of ['flipkartUrl','amazonUrl','meeshoUrl','otherStoreUrl','imageUrl']) {
+    const v = payload[key];
+    if (v && !/^https?:\/\//i.test(v)) {
+      alert(key + ' must be a full http/https URL');
+      return;
+    }
   }
 
   const btn = document.getElementById('ap-save');
@@ -414,38 +437,88 @@ async function saveAdminProduct() {
   btn.textContent = 'Saving...';
 
   try {
-    await db.collection('products').add({
-      name,
-      category,
-      description,
-      price,
-      originalPrice,
-      discount: originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0,
-      productType,
-      affiliateUrl: productType === 'affiliate' ? affiliateUrl : '',
-      storeUrl: productType === 'own_store' ? storeUrl : '',
-      imageUrl: imageUrl || '',
-      gallery: [],
-      rating: null,
-      stockStatus: 'in_stock',
-      isFeatured,
-      isActive: true,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    alert('Product saved! It will appear in Shop.');
-    loadShopPage();
+    if (editId) {
+      await db.collection('products').doc(editId).set(payload, { merge: true });
+    } else {
+      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('products').add(payload);
+    }
+    alert('Saved');
+    showAdminDashboard();
   } catch (err) {
-    console.error(err);
-    alert('Failed to save: ' + (err.message || 'Error'));
+    alert('Failed: ' + (err.message || 'Error'));
   }
   btn.disabled = false;
   btn.textContent = 'Save Product';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const nav = document.querySelector('.nav-item[data-page="shop"]');
-  if (nav) {
-    nav.addEventListener('click', () => setTimeout(loadShopPage, 50));
+async function showAdminProductList() {
+  const c = document.getElementById('shop-content');
+  c.innerHTML = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
+    <div class="empty-state"><i class="fas fa-spinner fa-spin"></i></div>`;
+  try {
+    const snap = await db.collection('products').get();
+    let html = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>`;
+    if (snap.empty) {
+      html += `<div class="empty-state"><p>No products yet</p></div>`;
+    } else {
+      snap.forEach(doc => {
+        const p = doc.data();
+        html += `<div class="admin-product-row">
+          <div>
+            <strong>${escapeHtml(p.name)}</strong>
+            <small>${p.isActive ? 'Active' : 'Off'} ${p.isPinned ? '· Pin' : ''}</small>
+          </div>
+          <div>
+            <button class="btn-sm btn-outline" onclick='showAdminAddProduct("${doc.id}", ${JSON.stringify(p).replace(/'/g, "&#39;")})'>Edit</button>
+            <button class="btn-sm btn-outline" onclick="toggleProductActive('${doc.id}', ${!p.isActive})">${p.isActive ? 'Deactivate' : 'Activate'}</button>
+          </div>
+        </div>`;
+      });
+    }
+    c.innerHTML = html;
+  } catch (e) {
+    c.innerHTML = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
+      <p>Error loading</p>`;
   }
-});
+}
+
+async function toggleProductActive(id, active) {
+  try {
+    await db.collection('products').doc(id).update({
+      isActive: active,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showAdminProductList();
+  } catch (e) {
+    alert('Failed');
+  }
+}
+
+async function showAdminBanners() {
+  const c = document.getElementById('shop-content');
+  c.innerHTML = `
+    <div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Banners</span></div>
+    <div class="admin-form">
+      <input type="url" id="bn-url" placeholder="Banner image URL (Firebase Storage)">
+      <input type="number" id="bn-order" placeholder="Order (0,1,2...)" value="0">
+      <button class="btn btn-primary" onclick="saveBanner()">Add Banner</button>
+    </div>
+    <div id="bn-list" style="margin-top:16px"></div>
+  `;
+  try {
+    const snap = await db.collection('shop_banners').get();
+    let html = '';
+    snap.forEach(doc => {
+      const b = doc.data();
+      html += `<div class="admin-product-row">
+        <small>${escapeHtml(b.imageUrl || '').slice(0, 40)}...</small>
+        <button class="btn-sm btn-outline" onclick="deleteBanner('${doc.id}')">Delete</button>
+      </div>`;
+    });
+    document.getElementById('bn-list').innerHTML = html || '<p style="color:var(--text-light);font-size:13px">No banners</p>';
+  } catch (e) {}
+}
+
+async function saveBanner() {
+  const imageUrl = document.getElementById('bn-url').value.tri
