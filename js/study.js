@@ -157,18 +157,18 @@ function openChapter(chapterId, chapterName, chapterNumber) {
 
       <div class="action-cards">
         <div class="action-card" onclick="openEbook()">
-          <i class="fas fa-external-link-alt"></i>
+          <i class="fas fa-book-open"></i>
           <div>
-            <h4>Read NCERT Ebook</h4>
-            <p>Open official NCERT book</p>
+            <h4>Read</h4>
+            <p>NCERT Ebook</p>
           </div>
         </div>
 
-        <div class="action-card pro-notes" onclick="openProNotes()">
-          <i class="fas fa-lock"></i>
+        <div class="action-card" onclick="openProNotes()">
+          <i class="fas fa-file-alt"></i>
           <div>
             <h4>Pro Notes</h4>
-            <p>Watch ad to unlock</p>
+            <p>Study material</p>
           </div>
         </div>
       </div>
@@ -183,17 +183,16 @@ function openEbook() {
 }
 
 function openProNotes() {
-  // Every time user opens Pro Notes → show ad first
+  // Ad will play quietly in background later (AdMob). For now just open.
   showRewardedAd(() => {
-    alert('Pro Notes will open here after ad.\n\n(Real Pro Notes files coming in later parts)');
+    alert('Pro Notes will open here.\n\n(Real files will be added soon)');
   });
 }
 
-// Simple Ad placeholder (will connect real AdMob later)
+// Ad placeholder - later connect real rewarded ad. Do not show messages about ads in UI.
 function showRewardedAd(onSuccess) {
-  // For now just simulate
-  const confirmed = confirm('A short ad will play to unlock Pro Notes.\n\n(Click OK to simulate ad watched)');
-  if (confirmed && typeof onSuccess === 'function') {
+  // Silent for now - just continue
+  if (typeof onSuccess === 'function') {
     onSuccess();
   }
 }
