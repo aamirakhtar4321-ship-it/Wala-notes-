@@ -1,4 +1,4 @@
-/* ==================== NOTES WALLAH SHOP — PART 8 (Reference UI) ==================== */
+/* ==================== SHOP — SUPABASE ==================== */
 
 let shopProducts = [];
 let shopBanners = [];
@@ -28,7 +28,6 @@ const CAT_ICON_COLORS = {
 function loadShopPage() {
   const container = document.getElementById('shop-content');
   if (!container) return;
-
   container.innerHTML = `
     <div id="shop-banner-wrap" class="shop-banner-wrap">
       <div class="shop-hero-card">
@@ -42,32 +41,19 @@ function loadShopPage() {
       <div class="shop-banner-track hidden" id="shop-banner-track"></div>
       <div class="shop-banner-dots" id="shop-banner-dots"></div>
     </div>
-
     <div id="sale-banner" class="sale-banner hidden"></div>
-
     <div class="shop-search-wrap full">
       <i class="fas fa-search"></i>
       <input type="text" id="shop-search" placeholder="Search products..." oninput="onShopSearch(this.value)">
     </div>
-
-    <div class="shop-section-head">
-      <h3>Shop by Category</h3>
-    </div>
+    <div class="shop-section-head"><h3>Shop by Category</h3></div>
     <div class="shop-cat-icons" id="shop-cat-icons"></div>
-
-    <div class="shop-section-head">
-      <h3><i class="fas fa-star" style="color:var(--gold);font-size:14px"></i> Featured Products</h3>
-    </div>
-    <div id="shop-products-area">
-      <div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>
-    </div>
+    <div class="shop-section-head"><h3><i class="fas fa-star" style="color:#f5a623;font-size:14px"></i> Featured Products</h3></div>
+    <div id="shop-products-area"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div></div>
   `;
-
   renderCatIcons();
   Promise.all([fetchBanners(), fetchSaleConfig(), fetchProducts()]).then(() => {
-    startBannerSlider();
-    applySaleUI();
-    renderShopProducts();
+    startBannerSlider(); applySaleUI(); renderShopProducts();
   });
 }
 
@@ -77,12 +63,9 @@ function renderCatIcons() {
   const cats = ['books','tshirts','mugs','stationery','accessories'];
   el.innerHTML = cats.map(c => `
     <button class="cat-icon-btn ${shopFilter===c?'active':''}" onclick="setShopFilter('${c}')">
-      <span class="cat-icon-circle" style="background:${CAT_COLORS[c]};color:${CAT_ICON_COLORS[c]}">
-        <i class="${CAT_ICONS[c]}"></i>
-      </span>
+      <span class="cat-icon-circle" style="background:${CAT_COLORS[c]};color:${CAT_ICON_COLORS[c]}"><i class="${CAT_ICONS[c]}"></i></span>
       <span class="cat-icon-label">${CAT_LABELS[c]}</span>
-    </button>
-  `).join('') + `
+    </button>`).join('') + `
     <button class="cat-icon-btn ${shopFilter==='all'?'active':''}" onclick="setShopFilter('all')">
       <span class="cat-icon-circle" style="background:#eceff1;color:#546e7a"><i class="fas fa-th"></i></span>
       <span class="cat-icon-label">All</span>
@@ -91,10 +74,9 @@ function renderCatIcons() {
 
 async function fetchBanners() {
   try {
-    const snap = await db.collection('shop_banners').where('isActive', '==', true).get();
-    shopBanners = [];
-    snap.forEach(doc => shopBanners.push({ id: doc.id, ...doc.data() }));
-    shopBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const { data, error } = await supabase.from('shop_banners').select('*').eq('is_active', true).order('sort_order');
+    if (error) throw error;
+    shopBanners = data || [];
     renderBanners();
   } catch (e) { shopBanners = []; }
 }
@@ -112,14 +94,10 @@ function renderBanners() {
   if (hero) hero.classList.add('hidden');
   track.classList.remove('hidden');
   track.innerHTML = shopBanners.map(b =>
-    `<div class="shop-banner-slide">${b.imageUrl ? `<img src="${escapeAttr(b.imageUrl)}" alt="" loading="lazy">` : ''}</div>`
+    `<div class="shop-banner-slide">${b.image_url ? `<img src="${esc(b.image_url)}" loading="lazy">` : ''}</div>`
   ).join('');
-  if (dots) {
-    dots.innerHTML = shopBanners.map((_, i) =>
-      `<span class="dot ${i===0?'active':''}"></span>`).join('');
-  }
-  bannerIndex = 0;
-  track.style.transform = 'translateX(0)';
+  if (dots) dots.innerHTML = shopBanners.map((_, i) => `<span class="dot ${i===0?'active':''}"></span>`).join('');
+  bannerIndex = 0; track.style.transform = 'translateX(0)';
 }
 
 function startBannerSlider() {
@@ -135,8 +113,8 @@ function startBannerSlider() {
 
 async function fetchSaleConfig() {
   try {
-    const doc = await db.collection('app_settings').doc('shop_sales').get();
-    saleConfig = doc.exists ? (doc.data() || { festivals: [] }) : { festivals: [] };
+    const { data } = await supabase.from('app_settings').select('*').eq('id', 'shop_sales').maybeSingle();
+    saleConfig = data?.value || { festivals: [] };
   } catch (e) { saleConfig = { festivals: [] }; }
 }
 
@@ -144,14 +122,11 @@ function getActiveSale() {
   const now = new Date();
   for (const f of (saleConfig.festivals || [])) {
     if (!f.start || !f.end || !f.name) continue;
-    const start = new Date(f.start);
-    const end = new Date(f.end);
-    end.setHours(23, 59, 59, 999);
-    if (now >= start && now <= end)
-      return { type: 'festival', title: f.name + ' Sale', subtitle: 'Special picks for you' };
+    const start = new Date(f.start), end = new Date(f.end);
+    end.setHours(23,59,59,999);
+    if (now >= start && now <= end) return { title: f.name + ' Sale', subtitle: 'Special picks for you' };
   }
-  if (now.getDay() === 0)
-    return { type: 'sunday', title: 'Sunday Special Sale', subtitle: 'Handpicked for your study goals' };
+  if (now.getDay() === 0) return { title: 'Sunday Special Sale', subtitle: 'Handpicked for study goals' };
   return null;
 }
 
@@ -161,31 +136,29 @@ function applySaleUI() {
   const sale = getActiveSale();
   if (!sale) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
-  el.innerHTML = `<div class="sale-banner-inner"><i class="fas fa-bolt"></i><div>
-    <strong>${escapeHtml(sale.title)}</strong><span>${escapeHtml(sale.subtitle)}</span></div></div>`;
+  el.innerHTML = `<div class="sale-banner-inner"><i class="fas fa-bolt"></i><div><strong>${escHtml(sale.title)}</strong><span>${escHtml(sale.subtitle)}</span></div></div>`;
 }
 
 async function fetchProducts() {
   try {
-    const snap = await db.collection('products').where('isActive', '==', true).get();
-    shopProducts = [];
-    snap.forEach(doc => shopProducts.push({ id: doc.id, ...doc.data() }));
-    sortProductsForDisplay();
+    const { data, error } = await supabase.from('products').select('*').eq('is_active', true);
+    if (error) throw error;
+    shopProducts = data || [];
+    sortProducts();
     renderShopProducts();
   } catch (err) {
     const area = document.getElementById('shop-products-area');
     if (area) area.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-circle"></i>
-      <p>Unable to load products.</p>
+      <p>Unable to load products</p>
       <button class="btn btn-primary" style="margin-top:12px;width:auto;padding:10px 20px" onclick="fetchProducts()">Retry</button></div>`;
   }
 }
 
-function sortProductsForDisplay() {
-  shopProducts.sort((a, b) => (b.isPinned?1:0)-(a.isPinned?1:0) || (b.isFeatured?1:0)-(a.isFeatured?1:0));
-  const sale = getActiveSale();
-  if (sale) {
-    const pinned = shopProducts.filter(p => p.isPinned);
-    const rest = shopProducts.filter(p => !p.isPinned);
+function sortProducts() {
+  shopProducts.sort((a,b) => (b.is_pinned?1:0)-(a.is_pinned?1:0) || (b.is_featured?1:0)-(a.is_featured?1:0));
+  if (getActiveSale()) {
+    const pinned = shopProducts.filter(p => p.is_pinned);
+    const rest = shopProducts.filter(p => !p.is_pinned);
     for (let i = rest.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [rest[i], rest[j]] = [rest[j], rest[i]];
@@ -194,178 +167,96 @@ function sortProductsForDisplay() {
   }
 }
 
-function onShopSearch(val) {
-  shopSearch = (val || '').toLowerCase().trim();
-  renderShopProducts();
-}
+function onShopSearch(v) { shopSearch = (v||'').toLowerCase().trim(); renderShopProducts(); }
+function setShopFilter(c) { shopFilter = c; renderCatIcons(); renderShopProducts(); }
 
-function setShopFilter(cat) {
-  shopFilter = cat;
-  renderCatIcons();
-  renderShopProducts();
-}
-
-function marketplaceButtonsHtml(p, large) {
-  const buttons = [];
-  if (p.flipkartUrl && /^https?:\/\//i.test(p.flipkartUrl)) {
-    buttons.push(`<a class="mkt-btn mkt-flipkart ${large?'mkt-lg':''}" href="${escapeAttr(p.flipkartUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
-      <span class="mkt-logo">f</span> Flipkart ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
-  }
-  if (p.amazonUrl && /^https?:\/\//i.test(p.amazonUrl)) {
-    buttons.push(`<a class="mkt-btn mkt-amazon ${large?'mkt-lg':''}" href="${escapeAttr(p.amazonUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
-      amazon ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
-  }
-  if (p.meeshoUrl && /^https?:\/\//i.test(p.meeshoUrl)) {
-    buttons.push(`<a class="mkt-btn mkt-meesho ${large?'mkt-lg':''}" href="${escapeAttr(p.meeshoUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
-      meesho ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
-  }
-  if (p.otherStoreUrl && /^https?:\/\//i.test(p.otherStoreUrl)) {
-    const label = escapeHtml(p.otherStoreName || 'Other Stores');
-    buttons.push(`<a class="mkt-btn mkt-other ${large?'mkt-lg':''}" href="${escapeAttr(p.otherStoreUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
-      <i class="fas fa-link"></i> ${label} ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
-  }
-  if (!buttons.length) return `<span class="mkt-none">Links coming soon</span>`;
-  return `<div class="mkt-btns ${large?'mkt-grid':''}">${buttons.join('')}</div>`;
+function mktBtns(p, large) {
+  const b = [];
+  if (p.flipkart_url && /^https?:\/\//i.test(p.flipkart_url))
+    b.push(`<a class="mkt-btn mkt-flipkart ${large?'mkt-lg':''}" href="${esc(p.flipkart_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><span class="mkt-logo">f</span> Flipkart ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
+  if (p.amazon_url && /^https?:\/\//i.test(p.amazon_url))
+    b.push(`<a class="mkt-btn mkt-amazon ${large?'mkt-lg':''}" href="${esc(p.amazon_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">amazon ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
+  if (p.meesho_url && /^https?:\/\//i.test(p.meesho_url))
+    b.push(`<a class="mkt-btn mkt-meesho ${large?'mkt-lg':''}" href="${esc(p.meesho_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">meesho ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
+  if (p.other_store_url && /^https?:\/\//i.test(p.other_store_url))
+    b.push(`<a class="mkt-btn mkt-other ${large?'mkt-lg':''}" href="${esc(p.other_store_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="fas fa-link"></i> ${escHtml(p.other_store_name||'Other')} ${large?'<i class="fas fa-arrow-right"></i>':''}</a>`);
+  if (!b.length) return `<span class="mkt-none">Links coming soon</span>`;
+  return `<div class="mkt-btns ${large?'mkt-grid':''}">${b.join('')}</div>`;
 }
 
 function renderShopProducts() {
   const area = document.getElementById('shop-products-area');
   if (!area) return;
-
   let list = shopProducts.filter(p => {
-    if (shopFilter !== 'all' && (p.category || '').toLowerCase() !== shopFilter) return false;
+    if (shopFilter !== 'all' && (p.category||'').toLowerCase() !== shopFilter) return false;
     if (shopSearch) {
-      const n = (p.name || '').toLowerCase();
-      const c = (p.category || '').toLowerCase();
+      const n = (p.name||'').toLowerCase(), c = (p.category||'').toLowerCase();
       if (!n.includes(shopSearch) && !c.includes(shopSearch)) return false;
     }
     return true;
   });
-  list.sort((a, b) => (b.isPinned?1:0)-(a.isPinned?1:0) || (b.isFeatured?1:0)-(a.isFeatured?1:0));
-
+  list.sort((a,b) => (b.is_pinned?1:0)-(a.is_pinned?1:0) || (b.is_featured?1:0)-(a.is_featured?1:0));
   if (!list.length) {
     area.innerHTML = `<div class="empty-state"><i class="fas fa-store"></i>
-      <p>${shopSearch || shopFilter!=='all' ? 'No products found' : 'Nothing here yet'}</p>
+      <p>${shopSearch||shopFilter!=='all'?'No products found':'Nothing here yet'}</p>
       <small>Admin → Account → Shop Admin</small></div>`;
     return;
   }
-
   area.innerHTML = `<div class="product-grid">${list.map(p => `
     <div class="product-card ref-card" onclick="openProductDetail('${p.id}')">
       <div class="product-img-wrap">
-        ${p.imageUrl
-          ? `<img src="${escapeAttr(p.imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'img-placeholder\\'><i class=\\'fas fa-image\\'></i></div>'">`
-          : `<div class="img-placeholder"><i class="fas fa-image"></i></div>`}
-        ${p.isFeatured ? '<span class="feat-badge">Featured</span>' : ''}
+        ${p.image_url ? `<img src="${esc(p.image_url)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'img-placeholder\\'><i class=\\'fas fa-image\\'></i></div>'">` : `<div class="img-placeholder"><i class="fas fa-image"></i></div>`}
+        ${p.is_featured ? '<span class="feat-badge">Featured</span>' : ''}
       </div>
       <div class="product-body">
-        <h4 class="product-name">${escapeHtml(p.name || 'Product')}</h4>
-        <p class="product-meta">${escapeHtml(CAT_LABELS[p.category] || p.category || '')}</p>
-        ${p.description ? `<p class="product-snippet">${escapeHtml(p.description).slice(0, 80)}${(p.description||'').length>80?'…':''}</p>` : ''}
-        ${marketplaceButtonsHtml(p, false)}
+        <h4 class="product-name">${escHtml(p.name||'Product')}</h4>
+        <p class="product-meta">${escHtml(CAT_LABELS[p.category]||p.category||'')}</p>
+        ${mktBtns(p,false)}
       </div>
-    </div>
-  `).join('')}</div>`;
+    </div>`).join('')}</div>`;
 }
 
 function openProductDetail(id) {
   const p = shopProducts.find(x => x.id === id);
   if (!p) return;
-  const container = document.getElementById('shop-content');
-  container.innerHTML = `
+  document.getElementById('shop-content').innerHTML = `
     <div class="back-bar" onclick="loadShopPage()"><i class="fas fa-arrow-left"></i><span>Product</span></div>
     <div class="product-detail ref-detail">
       <div class="detail-img">
-        ${p.imageUrl ? `<img src="${escapeAttr(p.imageUrl)}" alt="" loading="lazy">` : `<div class="img-placeholder large"><i class="fas fa-image"></i></div>`}
-        ${p.isFeatured ? '<span class="feat-badge">Featured</span>' : ''}
+        ${p.image_url ? `<img src="${esc(p.image_url)}" loading="lazy">` : `<div class="img-placeholder large"><i class="fas fa-image"></i></div>`}
+        ${p.is_featured ? '<span class="feat-badge">Featured</span>' : ''}
       </div>
-      <span class="chip-cat">${escapeHtml(CAT_LABELS[p.category] || '')}</span>
-      <h2 class="detail-name">${escapeHtml(p.name || '')}</h2>
-      ${p.description ? `<p class="detail-desc">${escapeHtml(p.description)}</p>` : ''}
-
+      <span class="chip-cat">${escHtml(CAT_LABELS[p.category]||'')}</span>
+      <h2 class="detail-name">${escHtml(p.name||'')}</h2>
+      ${p.description ? `<p class="detail-desc">${escHtml(p.description)}</p>` : ''}
       <div class="available-on">
         <h4><i class="fas fa-store"></i> Available On</h4>
         <p class="avail-sub">Choose your preferred marketplace</p>
-        ${marketplaceButtonsHtml(p, true)}
+        ${mktBtns(p, true)}
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str || '';
-  return d.innerHTML;
-}
-function escapeAttr(str) {
-  return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
+function esc(s) { return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
-/* ---------- ADMIN (reference-style) ---------- */
-async function isCurrentUserAdmin() {
-  try {
-    const user = auth.currentUser;
-    if (!user) return false;
-    const doc = await db.collection("users").doc(user.uid).get();
-    if (!doc.exists) return false;
-    const v = doc.data().isAdmin;
-    return v === true || v === "true" || v === 1 || v === "1";
-  } catch (e) {
-    console.error("isAdmin error", e);
-    return false;
-  }
+/* ---- ADMIN ---- */
+function isAdminUser() {
+  return !!(AppState && AppState.isAdmin);
 }
 
 async function openShopAdmin() {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      alert("Pehle login karo");
-      return;
-    }
-
-    let ok = false;
-    let detail = "";
-    try {
-      const doc = await db.collection("users").doc(user.uid).get();
-      if (!doc.exists) {
-        detail = "users collection me aapka document nahi mila.\\nUID: " + user.uid;
-      } else {
-        const data = doc.data();
-        const v = data.isAdmin;
-        ok = v === true || v === "true" || v === 1 || v === "1";
-        detail = "isAdmin value = " + JSON.stringify(v) + " (type: " + typeof v + ")\\nUID: " + user.uid;
-      }
-    } catch (e) {
-      detail = "Firestore read failed: " + (e.message || e.code || e);
-    }
-
-    if (!ok) {
-      alert("Shop Admin only for admin.\\n\\n" + detail + "\\n\\nFirebase → Firestore → users → apna doc →\\nisAdmin = true (boolean) add karo, phir logout/login.");
-      return;
-    }
-
-    // Go to shop page then show admin
-    const shopNav = document.querySelector('.nav-item[data-page="shop"]');
-    const shopPage = document.getElementById("page-shop");
-    const shopContent = document.getElementById("shop-content");
-
-    if (shopNav) {
-      document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-      shopNav.classList.add("active");
-    }
-    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-    if (shopPage) shopPage.classList.add("active");
-
-    if (shopContent) {
-      showAdminDashboard();
-    } else {
-      alert("Shop page not found in HTML. Part 6/8 index.html upload karo.");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("Shop Admin error: " + (err.message || err));
+  if (!isAdminUser()) {
+    const email = AppState?.user?.email || '';
+    alert('Admin only.\\n\\nLogin with admin account.\\nEmail: ' + email + '\\n\\nSupabase → profiles → is_admin = true');
+    return;
   }
+  const shopNav = document.querySelector('.nav-item[data-page="shop"]');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (shopNav) shopNav.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-shop')?.classList.add('active');
+  setTimeout(() => showAdminDashboard(), 100);
 }
 
 async function showAdminDashboard() {
@@ -373,88 +264,83 @@ async function showAdminDashboard() {
   if (!c) return;
   let total = 0, active = 0, pinned = 0;
   try {
-    const snap = await db.collection('products').get();
-    total = snap.size;
-    snap.forEach(d => { const x = d.data(); if (x.isActive) active++; if (x.isPinned) pinned++; });
+    const { data } = await supabase.from('products').select('is_active,is_pinned');
+    total = (data||[]).length;
+    (data||[]).forEach(x => { if (x.is_active) active++; if (x.is_pinned) pinned++; });
   } catch (e) {}
-
   c.innerHTML = `
-    <div class="back-bar" onclick="loadShopPage()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
-    <div class="admin-top-row">
-      <h3 style="margin:0">Product catalogue</h3>
-      <button class="btn-add-prod" onclick="showAdminAddProduct()"><i class="fas fa-plus"></i> Add product</button>
-    </div>
+    <div class="back-bar" onclick="loadShopPage()"><i class="fas fa-arrow-left"></i><span>Shop Admin</span></div>
+    <div class="admin-top-row"><h3 style="margin:0">Admin Dashboard</h3>
+      <button class="btn-add-prod" onclick="showAdminAddProduct()"><i class="fas fa-plus"></i> Add</button></div>
     <div class="admin-stats">
       <div class="admin-stat"><strong>${total}</strong><span>Total</span></div>
       <div class="admin-stat"><strong>${active}</strong><span>Active</span></div>
       <div class="admin-stat"><strong>${pinned}</strong><span>Pinned</span></div>
     </div>
-    <button class="btn btn-outline" onclick="showAdminProductList()">Manage products</button>
-    <button class="btn btn-outline" style="margin-top:8px" onclick="showAdminBanners()">Manage banners</button>
+    <button class="btn btn-outline" onclick="showAdminProductList()">All Products</button>
+    <button class="btn btn-outline" style="margin-top:8px" onclick="showAdminBanners()">Banners</button>
   `;
 }
 
 function showAdminAddProduct(editId, data) {
-  const c = document.getElementById('shop-content');
   const d = data || {};
-  c.innerHTML = `
+  document.getElementById('shop-content').innerHTML = `
     <div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>${editId?'Edit':'Add'} Product</span></div>
     <div class="admin-form card-form">
       <label class="field-label">Name</label>
-      <input type="text" id="ap-name" value="${escapeAttr(d.name||'')}" placeholder="Product name">
+      <input type="text" id="ap-name" value="${esc(d.name||'')}" placeholder="Product name">
       <label class="field-label">Category</label>
       <select id="ap-category">
-        ${['books','tshirts','mugs','stationery','accessories'].map(cat =>
-          `<option value="${cat}" ${(d.category||'')===cat?'selected':''}>${CAT_LABELS[cat]}</option>`).join('')}
+        ${['books','tshirts','mugs','stationery','accessories'].map(c =>
+          `<option value="${c}" ${(d.category||'')===c?'selected':''}>${CAT_LABELS[c]}</option>`).join('')}
       </select>
       <label class="field-label">Description</label>
-      <textarea id="ap-desc" rows="3" placeholder="Description">${escapeHtml(d.description||'')}</textarea>
+      <textarea id="ap-desc" rows="3">${escHtml(d.description||'')}</textarea>
       <label class="field-label">Product image</label>
       <div class="img-upload-row">
-        <input type="file" id="ap-image-file" accept="image/*" style="font-size:13px">
+        <input type="file" id="ap-image-file" accept="image/*">
         <button type="button" class="btn-sm btn-outline" onclick="uploadProductImage()">Upload</button>
       </div>
-      <input type="url" id="ap-image" value="${escapeAttr(d.imageUrl||'')}" placeholder="Or paste image URL">
-      <p id="ap-upload-status" style="font-size:12px;color:var(--text-light);margin:4px 0 0"></p>
+      <input type="url" id="ap-image" value="${esc(d.image_url||'')}" placeholder="Image URL after upload">
+      <p id="ap-upload-status" style="font-size:12px;color:var(--text-light)"></p>
       <label class="field-label">Flipkart URL</label>
-      <input type="url" id="ap-flipkart" value="${escapeAttr(d.flipkartUrl||'')}" placeholder="https://...">
+      <input type="url" id="ap-flipkart" value="${esc(d.flipkart_url||'')}">
       <label class="field-label">Amazon URL</label>
-      <input type="url" id="ap-amazon" value="${escapeAttr(d.amazonUrl||'')}" placeholder="https://...">
+      <input type="url" id="ap-amazon" value="${esc(d.amazon_url||'')}">
       <label class="field-label">Meesho URL</label>
-      <input type="url" id="ap-meesho" value="${escapeAttr(d.meeshoUrl||'')}" placeholder="https://...">
+      <input type="url" id="ap-meesho" value="${esc(d.meesho_url||'')}">
       <div class="two-col">
-        <div><label class="field-label">Other store name</label>
-        <input type="text" id="ap-other-name" value="${escapeAttr(d.otherStoreName||'')}"></div>
-        <div><label class="field-label">Other store URL</label>
-        <input type="url" id="ap-other-url" value="${escapeAttr(d.otherStoreUrl||'')}"></div>
+        <div><label class="field-label">Other name</label><input type="text" id="ap-other-name" value="${esc(d.other_store_name||'')}"></div>
+        <div><label class="field-label">Other URL</label><input type="url" id="ap-other-url" value="${esc(d.other_store_url||'')}"></div>
       </div>
       <div class="toggle-rows">
-        <label class="toggle-row"><span>Featured</span><input type="checkbox" id="ap-featured" ${d.isFeatured?'checked':''}></label>
-        <label class="toggle-row"><span>Pinned</span><input type="checkbox" id="ap-pinned" ${d.isPinned?'checked':''}></label>
-        <label class="toggle-row"><span>Active</span><input type="checkbox" id="ap-active" ${d.isActive!==false?'checked':''}></label>
+        <label class="toggle-row"><span>Featured</span><input type="checkbox" id="ap-featured" ${d.is_featured?'checked':''}></label>
+        <label class="toggle-row"><span>Pinned</span><input type="checkbox" id="ap-pinned" ${d.is_pinned?'checked':''}></label>
+        <label class="toggle-row"><span>Active</span><input type="checkbox" id="ap-active" ${d.is_active!==false?'checked':''}></label>
       </div>
-      <button class="btn btn-primary dark-btn" id="ap-save" onclick="saveAdminProduct('${editId||''}')">Save changes</button>
-    </div>
-  `;
+      <button class="btn btn-primary dark-btn" id="ap-save" onclick="saveAdminProduct('${editId||''}')">Save</button>
+    </div>`;
 }
 
 async function uploadProductImage() {
   const fileInput = document.getElementById('ap-image-file');
   const status = document.getElementById('ap-upload-status');
   const urlInput = document.getElementById('ap-image');
-  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-    alert('Choose an image first');
-    return;
-  }
-  if (status) status.textContent = 'Uploading to Supabase Storage...';
+  if (!fileInput?.files?.[0]) { alert('Image choose karo'); return; }
+  if (status) status.textContent = 'Uploading...';
   try {
-    const url = await uploadShopImage(fileInput.files[0], 'products');
-    if (urlInput) urlInput.value = url;
-    if (status) status.textContent = 'Uploaded successfully';
+    const file = fileInput.files[0];
+    if (file.size > 5e6) throw new Error('Max 5MB');
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `products/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+    const { error } = await supabase.storage.from('shop').upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw error;
+    const { data } = supabase.storage.from('shop').getPublicUrl(path);
+    if (urlInput) urlInput.value = data.publicUrl;
+    if (status) status.textContent = 'Uploaded OK';
   } catch (err) {
-    console.error(err);
-    if (status) status.textContent = 'Upload failed';
-    alert((err && err.message) ? err.message : 'Upload failed. Set Supabase keys and create public bucket "shop".');
+    if (status) status.textContent = 'Failed';
+    alert(err.message || 'Upload failed. Bucket "shop" public hona chahiye.');
   }
 }
 
@@ -465,10 +351,54 @@ async function saveAdminProduct(editId) {
     name,
     category: document.getElementById('ap-category').value,
     description: document.getElementById('ap-desc').value.trim(),
-    imageUrl: document.getElementById('ap-image').value.trim(),
-    flipkartUrl: document.getElementById('ap-flipkart').value.trim(),
-    amazonUrl: document.getElementById('ap-amazon').value.trim(),
-    meeshoUrl: document.getElementById('ap-meesho').value.trim(),
-    otherStoreName: document.getElementById('ap-other-name').value.trim(),
-    otherStoreUrl: document.getElementById('ap-other-url').value.trim(),
-    isPinned: 
+    image_url: document.getElementById('ap-image').value.trim(),
+    flipkart_url: document.getElementById('ap-flipkart').value.trim(),
+    amazon_url: document.getElementById('ap-amazon').value.trim(),
+    meesho_url: document.getElementById('ap-meesho').value.trim(),
+    other_store_name: document.getElementById('ap-other-name').value.trim(),
+    other_store_url: document.getElementById('ap-other-url').value.trim(),
+    is_pinned: document.getElementById('ap-pinned').checked,
+    is_featured: document.getElementById('ap-featured').checked,
+    is_active: document.getElementById('ap-active').checked,
+    updated_at: new Date().toISOString()
+  };
+  const btn = document.getElementById('ap-save');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    if (editId) {
+      const { error } = await supabase.from('products').update(payload).eq('id', editId);
+      if (error) throw error;
+    } else {
+      payload.created_at = new Date().toISOString();
+      const { error } = await supabase.from('products').insert(payload);
+      if (error) throw error;
+    }
+    alert('Saved');
+    showAdminDashboard();
+  } catch (err) {
+    alert('Failed: ' + (err.message || ''));
+  }
+  btn.disabled = false; btn.textContent = 'Save';
+}
+
+async function showAdminProductList() {
+  const c = document.getElementById('shop-content');
+  c.innerHTML = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
+    <div class="empty-state"><i class="fas fa-spinner fa-spin"></i></div>`;
+  try {
+    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    let html = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
+      <div class="admin-top-row"><h3 style="margin:0">Catalogue</h3>
+      <button class="btn-add-prod" onclick="showAdminAddProduct()"><i class="fas fa-plus"></i> Add</button></div>`;
+    (data||[]).forEach(p => {
+      const safe = JSON.stringify(p).replace(/'/g, '&#39;');
+      html += `<div class="admin-list-item">
+        <div class="admin-list-left">
+          <div class="admin-thumb">${p.image_url?`<img src="${esc(p.image_url)}">`:'<i class="fas fa-image"></i>'}</div>
+          <div><strong>${escHtml(p.name)}</strong>
+          <small>${escHtml(CAT_LABELS[p.category]||'')} · ${p.is_active?'Active':'Off'}</small></div>
+        </div>
+        <div class="admin-list-actions">
+          <label class="switch"><input type="checkbox" ${p.is_active?'checked':''} onchange="toggleProduct('${p.id}', this.checked)"><span class="slider"></span></label>
+          <button class="icon-btn" onclick='showAdmin
