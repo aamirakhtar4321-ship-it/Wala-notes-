@@ -14,14 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-login')?.addEventListener('click', async () => {
-    if (!supabase) { alert('Supabase keys missing.\njs/supabase.js me URL + anon key paste karo'); return; }
+    if (!window.sb || !window.sb.auth) { alert('Supabase keys missing.\njs/supabase.js me URL + anon key paste karo'); return; }
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     const btn = document.getElementById('btn-login');
     if (!email || !password) { alert('Email aur password daalo'); return; }
     btn.disabled = true; btn.textContent = 'Logging in...';
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await window.sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
     } catch (error) {
       let m = error.message || 'Login failed';
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-signup')?.addEventListener('click', async () => {
-    if (!supabase) { alert('Supabase keys missing.\njs/supabase.js me URL + anon key paste karo'); return; }
+    if (!window.sb || !window.sb.auth) { alert('Supabase keys missing.\njs/supabase.js me URL + anon key paste karo'); return; }
     const name = document.getElementById('signup-name').value.trim();
     const email = document.getElementById('signup-email').value.trim();
     const password = document.getElementById('signup-password').value;
@@ -41,14 +41,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (password.length < 6) { alert('Password min 6 characters'); return; }
     btn.disabled = true; btn.textContent = 'Creating...';
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await window.sb.auth.signUp({
         email, password,
         options: { data: { name } }
       });
       if (error) throw error;
       if (data.user) {
         const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
-        await supabase.from('profiles').upsert({
+        await window.sb.from('profiles').upsert({
           id: data.user.id,
           name, email,
           onboarded: false,
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function googleLogin() {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await window.sb.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.origin + window.location.pathname }
       });
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const email = document.getElementById('login-email').value.trim();
     if (!email) { alert('Pehle email likho'); return; }
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await window.sb.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin + window.location.pathname
       });
       if (error) throw error;
@@ -102,10 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     btn.disabled = true; btn.textContent = 'Saving...';
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await window.sb.auth.getUser();
       if (!user) { alert('Session expired'); showAuth(); return; }
       const isAdmin = ADMIN_EMAILS.includes((user.email || '').toLowerCase());
-      const { error } = await supabase.from('profiles').upsert({
+      const { error } = await window.sb.from('profiles').upsert({
         id: user.id,
         name, email: user.email,
         class: studentClass, board, medium, language,
