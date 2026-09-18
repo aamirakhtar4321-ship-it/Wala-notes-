@@ -1,18 +1,12 @@
-/* ==================== NOTES WALLAH - MAIN APP ==================== */
+/* ==================== MAIN APP — SUPABASE ==================== */
 
 const AppState = {
   isLoggedIn: false,
   isOnboarded: false,
-  user: {
-    name: '',
-    email: '',
-    class: '',
-    board: '',
-    medium: '',
-    language: ''
-  },
+  isAdmin: false,
+  user: { name: '', email: '', class: '', board: '', medium: '', language: '', id: '' },
   darkMode: false,
-  splashDone: false   // important flag to stop splash looping
+  splashDone: false
 };
 
 const splashScreen = document.getElementById('splash-screen');
@@ -20,193 +14,150 @@ const authScreen = document.getElementById('auth-screen');
 const onboardingScreen = document.getElementById('onboarding-screen');
 const mainApp = document.getElementById('main-app');
 
-// ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', () => {
   loadTheme();
-
-  // Minimum 1.8 second splash, then listen to auth
-  setTimeout(() => {
-    startAuthListener();
-  }, 1800);
+  setTimeout(() => startAuth(), 1600);
 });
 
-function startAuthListener() {
-  auth.onAuthStateChanged(async (user) => {
-    // Splash only hide once
-    if (!AppState.splashDone) {
-      hideSplash();
-      AppState.splashDone = true;
-    }
+async function startAuth() {
+  const { data: { session } } = await supabase.auth.getSession();
+  await handleSession(session);
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    await handleSession(session);
+  });
+}
 
-    if (user) {
-      try {
-        const doc = await db.collection('users').doc(user.uid).get();
+async function handleSession(session) {
+  if (!AppState.splashDone) {
+    hideSplash();
+    AppState.splashDone = true;
+  }
 
-        if (doc.exists) {
-          const data = doc.data();
-          AppState.user = {
-            name: data.name || user.displayName || '',
-            email: data.email || user.email,
-            class: data.class || '',
-            board: data.board || '',
-            medium: data.medium || '',
-            language: data.language || ''
-          };
-          AppState.isLoggedIn = true;
+  if (session && session.user) {
+    const u = session.user;
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', u.id)
+        .maybeSingle();
 
-          if (data.onboarded === true) {
-            AppState.isOnboarded = true;
-            showMainApp();
-          } else {
-            showOnboarding();
-          }
+      if (profile) {
+        AppState.user = {
+          id: u.id,
+          name: profile.name || u.user_metadata?.name || '',
+          email: profile.email || u.email,
+          class: profile.class || '',
+          board: profile.board || '',
+          medium: profile.medium || '',
+          language: profile.language || ''
+        };
+        AppState.isAdmin = !!(profile.is_admin) || ADMIN_EMAILS.includes((u.email || '').toLowerCase());
+        AppState.isLoggedIn = true;
+        if (profile.onboarded) {
+          AppState.isOnboarded = true;
+          showMainApp();
         } else {
-          // Auth user exists but no Firestore profile yet
-          AppState.user = {
-            name: user.displayName || '',
-            email: user.email || '',
-            class: '',
-            board: '',
-            medium: '',
-            language: ''
-          };
           showOnboarding();
         }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-        // Even if Firestore fails, still show main if we have basic user info
+      } else {
         AppState.user = {
-          name: user.displayName || user.email?.split('@')[0] || 'Student',
-          email: user.email || '',
-          class: '',
-          board: '',
-          medium: '',
-          language: ''
+          id: u.id,
+          name: u.user_metadata?.name || u.user_metadata?.full_name || '',
+          email: u.email,
+          class: '', board: '', medium: '', language: ''
         };
+        AppState.isAdmin = ADMIN_EMAILS.includes((u.email || '').toLowerCase());
         showOnboarding();
       }
-    } else {
-      // Not logged in
-      AppState.isLoggedIn = false;
-      AppState.isOnboarded = false;
-      showAuth();
+    } catch (e) {
+      console.error(e);
+      AppState.user = { id: u.id, name: '', email: u.email, class: '', board: '', medium: '', language: '' };
+      AppState.isAdmin = ADMIN_EMAILS.includes((u.email || '').toLowerCase());
+      showOnboarding();
     }
-  });
+  } else {
+    AppState.isLoggedIn = false;
+    AppState.isOnboarded = false;
+    AppState.isAdmin = false;
+    showAuth();
+  }
 }
 
 function hideSplash() {
   if (!splashScreen) return;
   splashScreen.classList.add('fade-out');
-  setTimeout(() => {
-    splashScreen.classList.add('hidden');
-  }, 400);
+  setTimeout(() => splashScreen.classList.add('hidden'), 400);
 }
-
 function showAuth() {
-  if (authScreen) authScreen.classList.remove('hidden');
-  if (onboardingScreen) onboardingScreen.classList.add('hidden');
-  if (mainApp) mainApp.classList.add('hidden');
+  authScreen?.classList.remove('hidden');
+  onboardingScreen?.classList.add('hidden');
+  mainApp?.classList.add('hidden');
 }
-
 function showOnboarding() {
-  if (authScreen) authScreen.classList.add('hidden');
-  if (onboardingScreen) onboardingScreen.classList.remove('hidden');
-  if (mainApp) mainApp.classList.add('hidden');
-
-  if (AppState.user.name) {
-    const nameInput = document.getElementById('onboard-name');
-    if (nameInput) nameInput.value = AppState.user.name;
-  }
+  authScreen?.classList.add('hidden');
+  onboardingScreen?.classList.remove('hidden');
+  mainApp?.classList.add('hidden');
+  const el = document.getElementById('onboard-name');
+  if (el && AppState.user.name) el.value = AppState.user.name;
 }
-
 function showMainApp() {
-  if (authScreen) authScreen.classList.add('hidden');
-  if (onboardingScreen) onboardingScreen.classList.add('hidden');
-  if (mainApp) mainApp.classList.remove('hidden');
-
+  authScreen?.classList.add('hidden');
+  onboardingScreen?.classList.add('hidden');
+  mainApp?.classList.remove('hidden');
   updateHomeUI();
   updateAccountUI();
 }
-
-// ==================== UI UPDATES ====================
 function updateHomeUI() {
   const hour = new Date().getHours();
-  let greeting = 'Good Morning';
-  if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
-  else if (hour >= 17) greeting = 'Good Evening';
-
-  const greetingEl = document.getElementById('greeting-text');
-  if (greetingEl) {
-    greetingEl.textContent = `${greeting}, ${AppState.user.name || 'Student'}`;
-  }
-
+  let g = 'Good Morning';
+  if (hour >= 12 && hour < 17) g = 'Good Afternoon';
+  else if (hour >= 17) g = 'Good Evening';
+  const el = document.getElementById('greeting-text');
+  if (el) el.textContent = `${g}, ${AppState.user.name || 'Student'}`;
   const info = [];
   if (AppState.user.class) info.push(`Class ${AppState.user.class}`);
   if (AppState.user.board) info.push(AppState.user.board);
   if (AppState.user.medium) info.push(AppState.user.medium);
-
   const infoEl = document.getElementById('student-info');
-  if (infoEl) {
-    infoEl.textContent = info.join(' · ') || 'Complete your profile';
-  }
+  if (infoEl) infoEl.textContent = info.join(' · ') || 'Complete your profile';
 }
-
 function updateAccountUI() {
-  const nameEl = document.getElementById('profile-name');
-  const emailEl = document.getElementById('profile-email');
-  const classEl = document.getElementById('profile-class');
-
-  if (nameEl) nameEl.textContent = AppState.user.name || 'Student Name';
-  if (emailEl) emailEl.textContent = AppState.user.email || 'email@example.com';
-
+  const n = document.getElementById('profile-name');
+  const e = document.getElementById('profile-email');
+  const c = document.getElementById('profile-class');
+  if (n) n.textContent = AppState.user.name || 'Student';
+  if (e) e.textContent = AppState.user.email || '';
   const info = [];
   if (AppState.user.class) info.push(`Class ${AppState.user.class}`);
   if (AppState.user.board) info.push(AppState.user.board);
-  if (AppState.user.medium) info.push(AppState.user.medium);
-  if (classEl) classEl.textContent = info.join(' · ') || 'Not set';
+  if (c) c.textContent = info.join(' · ') || 'Not set';
+  // Show/hide shop admin
+  const adminBtn = document.getElementById('btn-shop-admin');
+  if (adminBtn) adminBtn.style.display = AppState.isAdmin ? '' : 'none';
 }
-
-// ==================== THEME ====================
 function loadTheme() {
-  const saved = localStorage.getItem('nw_darkmode');
-  if (saved === 'true') {
+  if (localStorage.getItem('nw_darkmode') === 'true') {
     AppState.darkMode = true;
     document.body.classList.add('dark-mode');
-    const toggle = document.getElementById('dark-mode-toggle');
-    if (toggle) toggle.checked = true;
+    const t = document.getElementById('dark-mode-toggle');
+    if (t) t.checked = true;
   }
 }
-
 function toggleDarkMode() {
   AppState.darkMode = !AppState.darkMode;
   document.body.classList.toggle('dark-mode', AppState.darkMode);
   localStorage.setItem('nw_darkmode', AppState.darkMode);
 }
-
 document.addEventListener('DOMContentLoaded', () => {
-  const toggle = document.getElementById('dark-mode-toggle');
-  if (toggle) {
-    toggle.addEventListener('change', toggleDarkMode);
-  }
+  document.getElementById('dark-mode-toggle')?.addEventListener('change', toggleDarkMode);
+  document.getElementById('btn-logout')?.addEventListener('click', logout);
 });
-
-// ==================== LOGOUT ====================
 async function logout() {
-  try {
-    await auth.signOut();
-    AppState.isLoggedIn = false;
-    AppState.isOnboarded = false;
-    AppState.user = { name: '', email: '', class: '', board: '', medium: '', language: '' };
-    showAuth();
-  } catch (error) {
-    console.error('Logout error:', error);
-    alert('Logout failed. Please try again.');
-  }
+  await supabase.auth.signOut();
+  AppState.isLoggedIn = false;
+  AppState.isOnboarded = false;
+  AppState.isAdmin = false;
+  AppState.user = { name: '', email: '', class: '', board: '', medium: '', language: '', id: '' };
+  showAuth();
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  const btnLogout = document.getElementById('btn-logout');
-  if (btnLogout) {
-    btnLogout.addEventListener('click', logout);
-  }
-});
