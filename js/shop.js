@@ -306,16 +306,66 @@ async function isCurrentUserAdmin() {
   try {
     const user = auth.currentUser;
     if (!user) return false;
-    const doc = await db.collection('users').doc(user.uid).get();
-    return doc.exists && doc.data().isAdmin === true;
-  } catch (e) { return false; }
+    const doc = await db.collection("users").doc(user.uid).get();
+    if (!doc.exists) return false;
+    const v = doc.data().isAdmin;
+    return v === true || v === "true" || v === 1 || v === "1";
+  } catch (e) {
+    console.error("isAdmin error", e);
+    return false;
+  }
 }
 
 async function openShopAdmin() {
-  if (!(await isCurrentUserAdmin())) { alert('Admin access only'); return; }
-  const shopNav = document.querySelector('.nav-item[data-page="shop"]');
-  if (shopNav) shopNav.click();
-  setTimeout(() => showAdminDashboard(), 120);
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      alert("Pehle login karo");
+      return;
+    }
+
+    let ok = false;
+    let detail = "";
+    try {
+      const doc = await db.collection("users").doc(user.uid).get();
+      if (!doc.exists) {
+        detail = "users collection me aapka document nahi mila.\\nUID: " + user.uid;
+      } else {
+        const data = doc.data();
+        const v = data.isAdmin;
+        ok = v === true || v === "true" || v === 1 || v === "1";
+        detail = "isAdmin value = " + JSON.stringify(v) + " (type: " + typeof v + ")\\nUID: " + user.uid;
+      }
+    } catch (e) {
+      detail = "Firestore read failed: " + (e.message || e.code || e);
+    }
+
+    if (!ok) {
+      alert("Shop Admin only for admin.\\n\\n" + detail + "\\n\\nFirebase → Firestore → users → apna doc →\\nisAdmin = true (boolean) add karo, phir logout/login.");
+      return;
+    }
+
+    // Go to shop page then show admin
+    const shopNav = document.querySelector('.nav-item[data-page="shop"]');
+    const shopPage = document.getElementById("page-shop");
+    const shopContent = document.getElementById("shop-content");
+
+    if (shopNav) {
+      document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+      shopNav.classList.add("active");
+    }
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    if (shopPage) shopPage.classList.add("active");
+
+    if (shopContent) {
+      showAdminDashboard();
+    } else {
+      alert("Shop page not found in HTML. Part 6/8 index.html upload karo.");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Shop Admin error: " + (err.message || err));
+  }
 }
 
 async function showAdminDashboard() {
@@ -359,8 +409,13 @@ function showAdminAddProduct(editId, data) {
       </select>
       <label class="field-label">Description</label>
       <textarea id="ap-desc" rows="3" placeholder="Description">${escapeHtml(d.description||'')}</textarea>
-      <label class="field-label">Image URL</label>
-      <input type="url" id="ap-image" value="${escapeAttr(d.imageUrl||'')}" placeholder="Firebase Storage download URL">
+      <label class="field-label">Product image</label>
+      <div class="img-upload-row">
+        <input type="file" id="ap-image-file" accept="image/*" style="font-size:13px">
+        <button type="button" class="btn-sm btn-outline" onclick="uploadProductImage()">Upload</button>
+      </div>
+      <input type="url" id="ap-image" value="${escapeAttr(d.imageUrl||'')}" placeholder="Or paste image URL">
+      <p id="ap-upload-status" style="font-size:12px;color:var(--text-light);margin:4px 0 0"></p>
       <label class="field-label">Flipkart URL</label>
       <input type="url" id="ap-flipkart" value="${escapeAttr(d.flipkartUrl||'')}" placeholder="https://...">
       <label class="field-label">Amazon URL</label>
@@ -383,6 +438,26 @@ function showAdminAddProduct(editId, data) {
   `;
 }
 
+async function uploadProductImage() {
+  const fileInput = document.getElementById('ap-image-file');
+  const status = document.getElementById('ap-upload-status');
+  const urlInput = document.getElementById('ap-image');
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+    alert('Choose an image first');
+    return;
+  }
+  if (status) status.textContent = 'Uploading to Supabase Storage...';
+  try {
+    const url = await uploadShopImage(fileInput.files[0], 'products');
+    if (urlInput) urlInput.value = url;
+    if (status) status.textContent = 'Uploaded successfully';
+  } catch (err) {
+    console.error(err);
+    if (status) status.textContent = 'Upload failed';
+    alert((err && err.message) ? err.message : 'Upload failed. Set Supabase keys and create public bucket "shop".');
+  }
+}
+
 async function saveAdminProduct(editId) {
   const name = document.getElementById('ap-name').value.trim();
   if (!name) { alert('Name required'); return; }
@@ -396,53 +471,4 @@ async function saveAdminProduct(editId) {
     meeshoUrl: document.getElementById('ap-meesho').value.trim(),
     otherStoreName: document.getElementById('ap-other-name').value.trim(),
     otherStoreUrl: document.getElementById('ap-other-url').value.trim(),
-    isPinned: document.getElementById('ap-pinned').checked,
-    isFeatured: document.getElementById('ap-featured').checked,
-    isActive: document.getElementById('ap-active').checked,
-    stockStatus: 'in_stock',
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  };
-  for (const key of ['flipkartUrl','amazonUrl','meeshoUrl','otherStoreUrl','imageUrl']) {
-    if (payload[key] && !/^https?:\/\//i.test(payload[key])) {
-      alert(key + ' must be http/https URL'); return;
-    }
-  }
-  const btn = document.getElementById('ap-save');
-  btn.disabled = true; btn.textContent = 'Saving...';
-  try {
-    if (editId) await db.collection('products').doc(editId).set(payload, { merge: true });
-    else {
-      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('products').add(payload);
-    }
-    alert('Saved');
-    showAdminDashboard();
-  } catch (err) { alert('Failed: ' + (err.message || '')); }
-  btn.disabled = false; btn.textContent = 'Save changes';
-}
-
-async function showAdminProductList() {
-  const c = document.getElementById('shop-content');
-  c.innerHTML = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
-    <div class="empty-state"><i class="fas fa-spinner fa-spin"></i></div>`;
-  try {
-    const snap = await db.collection('products').get();
-    let html = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
-      <div class="admin-top-row"><h3 style="margin:0">Catalogue</h3>
-      <button class="btn-add-prod" onclick="showAdminAddProduct()"><i class="fas fa-plus"></i> Add</button></div>`;
-    if (snap.empty) html += `<div class="empty-state"><p>No products</p></div>`;
-    else {
-      snap.forEach(doc => {
-        const p = doc.data();
-        const safe = JSON.stringify(p).replace(/'/g, '&#39;').replace(/</g, '\\u003c');
-        html += `<div class="admin-list-item">
-          <div class="admin-list-left">
-            <div class="admin-thumb">${p.imageUrl?`<img src="${escapeAttr(p.imageUrl)}" loading="lazy">`:'<i class="fas fa-image"></i>'}</div>
-            <div>
-              <strong>${escapeHtml(p.name)}</strong>
-              <small>${escapeHtml(CAT_LABELS[p.category]||'')} · <span class="${p.isActive?'status-on':'status-off'}">${p.isActive?'Active':'Inactive'}</span></small>
-            </div>
-          </div>
-          <div class="admin-list-actions">
-            <label class="switch"><input type="checkbox" ${p.isActive?'checked':''} onchange="toggleProductActive('${doc.id}', this.checked)"><span class="slider"></span></label>
-            <button class="icon-btn" onclick='showAdminAddProduct
+    isPinned: 
