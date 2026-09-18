@@ -27,17 +27,17 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 async function startAuth() {
-  if (!supabase) {
+  if (!window.sb || !window.sb.auth) {
     console.warn("Supabase not configured — showing login");
     forceShowAuth();
     showKeysWarning();
     return;
   }
   try {
-    var res = await supabase.auth.getSession();
+    var res = await window.sb.auth.getSession();
     var session = res && res.data ? res.data.session : null;
     await handleSession(session);
-    supabase.auth.onAuthStateChange(function (event, session) {
+    window.sb.auth.onAuthStateChange(function (event, session) {
       handleSession(session).catch(function (e) { console.error(e); });
     });
   } catch (e) {
@@ -229,7 +229,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 async function logout() {
   try {
-    if (supabase) await supabase.auth.signOut();
+    if (window.sb) await window.sb.auth.signOut();
   } catch (e) {}
   AppState.isLoggedIn = false;
   AppState.isOnboarded = false;
