@@ -1,33 +1,29 @@
-/* ==================== NOTES WALLAH — SUPABASE ==================== */
+/* ==================== NOTES WALLAH — SUPABASE (FIXED) ==================== */
+/* Client must be window.sb — never name it "supabase" (clashes with CDN) */
 
-// ========== PASTE YOUR REAL KEYS HERE ==========
 const SUPABASE_URL = "https://xhgseosltqwxmmfsppbh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_QxUVn41IaxAawSiO50212Q_xCVLLtX6";
-// ===============================================
 
 const ADMIN_EMAILS = ["aamirakhtar4321@gmail.com"];
 
-let supabase = null;
+window.sb = null;
 
-(function initSupabase() {
+(function () {
   try {
-    if (!window.supabase || typeof window.supabase.createClient !== "function") {
-      console.error("Supabase SDK missing");
+    var lib = window.supabase;
+    if (!lib || typeof lib.createClient !== "function") {
+      console.error("Supabase CDN not loaded");
       return;
     }
-    if (
-      !SUPABASE_URL ||
-      SUPABASE_URL.indexOf("YOUR_") !== -1 ||
-      !SUPABASE_ANON_KEY ||
-      SUPABASE_ANON_KEY.indexOf("YOUR_") !== -1
-    ) {
-      console.warn("Paste real Supabase URL + anon key in js/supabase.js");
+    window.sb = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (!window.sb || !window.sb.auth) {
+      console.error("createClient failed");
+      window.sb = null;
       return;
     }
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log("Supabase OK");
+    console.log("Supabase client ready");
   } catch (e) {
-    console.error("Supabase init failed", e);
-    supabase = null;
+    console.error("Supabase init error", e);
+    window.sb = null;
   }
 })();
