@@ -2,8 +2,8 @@
 /* Auth / Firestore / Login = Firebase. Only images use Supabase Storage. */
 
 // PASTE YOUR SUPABASE KEYS HERE (Project Settings → API)
-const SUPABASE_URL = "https://jnmetyqhwhuujdxgxpmm.supabase.co";           // https://xxxxx.supabase.co
-const SUPABASE_ANON_KEY = "sb_publishable_V17u1fgx2kMg53TghxfCSA_jTc4Tptk"; // anon public key
+const SUPABASE_URL = "https://xhgseosltqwxmmfsppbh.supabase.co";           // https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = "sb_publishable_QxUVn41IaxAawSiO50212Q_xCVLLtX6"; // anon public key
 
 let supabaseStorage = null;
 
