@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-login')?.addEventListener('click', async () => {
+    if (!supabase) { alert('Supabase keys missing.\njs/supabase.js me URL + anon key paste karo'); return; }
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     const btn = document.getElementById('btn-login');
@@ -31,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-signup')?.addEventListener('click', async () => {
+    if (!supabase) { alert('Supabase keys missing.\njs/supabase.js me URL + anon key paste karo'); return; }
     const name = document.getElementById('signup-name').value.trim();
     const email = document.getElementById('signup-email').value.trim();
     const password = document.getElementById('signup-password').value;
