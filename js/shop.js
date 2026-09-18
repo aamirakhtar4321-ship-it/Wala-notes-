@@ -74,7 +74,7 @@ function renderCatIcons() {
 
 async function fetchBanners() {
   try {
-    const { data, error } = await supabase.from('shop_banners').select('*').eq('is_active', true).order('sort_order');
+    const { data, error } = await window.sb.from('shop_banners').select('*').eq('is_active', true).order('sort_order');
     if (error) throw error;
     shopBanners = data || [];
     renderBanners();
@@ -113,7 +113,7 @@ function startBannerSlider() {
 
 async function fetchSaleConfig() {
   try {
-    const { data } = await supabase.from('app_settings').select('*').eq('id', 'shop_sales').maybeSingle();
+    const { data } = await window.sb.from('app_settings').select('*').eq('id', 'shop_sales').maybeSingle();
     saleConfig = data?.value || { festivals: [] };
   } catch (e) { saleConfig = { festivals: [] }; }
 }
@@ -141,7 +141,7 @@ function applySaleUI() {
 
 async function fetchProducts() {
   try {
-    const { data, error } = await supabase.from('products').select('*').eq('is_active', true);
+    const { data, error } = await window.sb.from('products').select('*').eq('is_active', true);
     if (error) throw error;
     shopProducts = data || [];
     sortProducts();
@@ -264,7 +264,7 @@ async function showAdminDashboard() {
   if (!c) return;
   let total = 0, active = 0, pinned = 0;
   try {
-    const { data } = await supabase.from('products').select('is_active,is_pinned');
+    const { data } = await window.sb.from('products').select('is_active,is_pinned');
     total = (data||[]).length;
     (data||[]).forEach(x => { if (x.is_active) active++; if (x.is_pinned) pinned++; });
   } catch (e) {}
@@ -333,9 +333,9 @@ async function uploadProductImage() {
     if (file.size > 5e6) throw new Error('Max 5MB');
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `products/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
-    const { error } = await supabase.storage.from('shop').upload(path, file, { contentType: file.type, upsert: false });
+    const { error } = await window.sb.storage.from('shop').upload(path, file, { contentType: file.type, upsert: false });
     if (error) throw error;
-    const { data } = supabase.storage.from('shop').getPublicUrl(path);
+    const { data } = window.sb.storage.from('shop').getPublicUrl(path);
     if (urlInput) urlInput.value = data.publicUrl;
     if (status) status.textContent = 'Uploaded OK';
   } catch (err) {
@@ -366,11 +366,11 @@ async function saveAdminProduct(editId) {
   btn.disabled = true; btn.textContent = 'Saving...';
   try {
     if (editId) {
-      const { error } = await supabase.from('products').update(payload).eq('id', editId);
+      const { error } = await window.sb.from('products').update(payload).eq('id', editId);
       if (error) throw error;
     } else {
       payload.created_at = new Date().toISOString();
-      const { error } = await supabase.from('products').insert(payload);
+      const { error } = await window.sb.from('products').insert(payload);
       if (error) throw error;
     }
     alert('Saved');
@@ -386,7 +386,7 @@ async function showAdminProductList() {
   c.innerHTML = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
     <div class="empty-state"><i class="fas fa-spinner fa-spin"></i></div>`;
   try {
-    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+    const { data, error } = await window.sb.from('products').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     let html = `<div class="back-bar" onclick="showAdminDashboard()"><i class="fas fa-arrow-left"></i><span>Products</span></div>
       <div class="admin-top-row"><h3 style="margin:0">Catalogue</h3>
@@ -401,4 +401,4 @@ async function showAdminProductList() {
         </div>
         <div class="admin-list-actions">
           <label class="switch"><input type="checkbox" ${p.is_active?'checked':''} onchange="toggleProduct('${p.id}', this.checked)"><span class="slider"></span></label>
-          <button class="icon-btn" onclick='showAdmin
+          <button class="icon-btn" onclick='
